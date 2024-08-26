@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "palloc.h": "c",
+    "stdint.h": "c",
+    "flags.h": "c"
+  }
+}
