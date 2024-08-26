@@ -245,10 +245,11 @@ thread_unblock (struct thread *t) {
 	intr_set_level (old_level);
 }
 
-/* Returns the name of the running thread. */
-const char *
-thread_name (void) {
-	return thread_current ()->name;
+bool thread_priority_less(struct list_elem *t1, struct list_elem *t2,
+                          void *aux) {
+  struct thread *thread1 = list_entry(t1, struct thread, elem);
+  struct thread *thread2 = list_entry(t2, struct thread, elem);
+  return thread1->priority > thread2->priority;
 }
 
 /* Returns the running thread.
