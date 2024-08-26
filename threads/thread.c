@@ -238,10 +238,17 @@ thread_unblock (struct thread *t) {
 
 	ASSERT (is_thread (t));
 
-	old_level = intr_disable ();
-	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
-	t->status = THREAD_READY;
+  old_level = intr_disable();
+  ASSERT(t->status == THREAD_BLOCKED);
+  list_insert_ordered(&ready_list, &t->elem, thread_priority_less, NULL);
+
+  if (thread_current() != idle_thread) {
+    if (t->priority > thread_current()->priority) {
+      thread_yield();
+    }
+  }
+
+  t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
 
@@ -295,18 +302,17 @@ thread_exit (void) {
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
-void
-thread_yield (void) {
-	struct thread *curr = thread_current ();
-	enum intr_level old_level;
+void thread_yield(void) {
+  struct thread *curr = thread_current();
+  enum intr_level old_level;
 
-	ASSERT (!intr_context ());
+  ASSERT(!intr_context());
 
-	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
-	do_schedule (THREAD_READY);
-	intr_set_level (old_level);
+  old_level = intr_disable();
+  if (curr != idle_thread)
+    list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
+  do_schedule(THREAD_READY);
+  intr_set_level(old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
