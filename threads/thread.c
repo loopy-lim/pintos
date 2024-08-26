@@ -312,6 +312,22 @@ bool less(const struct list_elem *a, const struct list_elem *b, void *aux) {
   return time_a < time_b;
 }
 
+/* goes through waiting_list and unblocks threads with time shorter then
+ * current_time and are sent to ready_list */
+void thread_ready(int64_t current_time) {
+  struct list_elem *th;
+  th = list_begin(&waiting_list);
+
+  while (th != list_end(&waiting_list)) {
+    struct thread *waiting_thread = list_entry(th, struct thread, elem);
+
+    if (current_time < waiting_thread->stand_by_time) break;
+
+    th = list_remove(&waiting_thread->elem);
+    thread_unblock(waiting_thread);
+  }
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
   thread_current()->priority = new_priority;

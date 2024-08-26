@@ -135,6 +135,7 @@ void thread_exit(void) NO_RETURN;
 void thread_yield(void);
 void thread_wait(int64_t ticks);
 bool less(const struct list_elem *a, const struct list_elem *b, void *aux);
+void thread_ready(int64_t current_time);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
