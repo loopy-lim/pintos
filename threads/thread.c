@@ -286,6 +286,11 @@ void thread_exit(void) {
   NOT_REACHED();
 }
 
+bool is_current_idle_thread() {
+  struct thread *curr = thread_current();
+  return curr != idle_thread;
+}
+
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void thread_yield(void) {
@@ -295,7 +300,7 @@ void thread_yield(void) {
   ASSERT(!intr_context());
 
   old_level = intr_disable();
-  if (curr != idle_thread)
+  if (is_current_idle_thread())
     list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
   do_schedule(THREAD_READY);
   intr_set_level(old_level);
