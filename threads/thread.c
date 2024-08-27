@@ -62,6 +62,8 @@ static void init_thread(struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
+bool thread_priority_less(struct list_elem *t1, struct list_elem *t2,
+                          void *aux);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -226,9 +228,23 @@ void thread_unblock(struct thread *t) {
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  list_push_back(&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, thread_priority_less, NULL);
+
+  if (thread_current() != idle_thread) {
+    if (t->priority > thread_current()->priority) {
+      thread_yield();
+    }
+  }
+
   t->status = THREAD_READY;
   intr_set_level(old_level);
+}
+
+bool thread_priority_less(struct list_elem *t1, struct list_elem *t2,
+                          void *aux) {
+  struct thread *thread1 = list_entry(t1, struct thread, elem);
+  struct thread *thread2 = list_entry(t2, struct thread, elem);
+  return thread1->priority > thread2->priority;
 }
 
 /* Returns the name of the running thread. */
@@ -284,7 +300,8 @@ void thread_yield(void) {
   ASSERT(!intr_context());
 
   old_level = intr_disable();
-  if (is_current_idle_thread()) list_push_back(&ready_list, &curr->elem);
+  if (is_current_idle_thread())
+    list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
   do_schedule(THREAD_READY);
   intr_set_level(old_level);
 }
@@ -292,6 +309,7 @@ void thread_yield(void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
   thread_current()->priority = new_priority;
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -513,6 +531,7 @@ static void schedule(void) {
   ASSERT(intr_get_level() == INTR_OFF);
   ASSERT(curr->status != THREAD_RUNNING);
   ASSERT(is_thread(next));
+
   /* Mark us as running. */
   next->status = THREAD_RUNNING;
 

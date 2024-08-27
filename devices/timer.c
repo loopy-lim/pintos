@@ -187,7 +187,7 @@ static void thread_wait(int64_t ticks) {
     list_insert_ordered(&waiting_list, &curr->elem, thread_stand_by_time_less,
                         NULL);
   }
-  do_schedule(THREAD_BLOCKED);
+  thread_block();
   intr_set_level(old_level);
 }
 
