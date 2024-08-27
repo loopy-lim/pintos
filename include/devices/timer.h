@@ -21,4 +21,11 @@ void timer_nsleep(int64_t nanoseconds);
 
 void timer_print_stats(void);
 
+struct sleeping_thread {
+  int64_t stand_by_time; /* Value compared to curr_time before sending to
+                      ready_list */
+  struct thread *thread;
+  struct list_elem elem;
+};
+
 #endif /* devices/timer.h */

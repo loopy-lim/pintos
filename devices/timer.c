@@ -7,6 +7,7 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "threads/palloc.h"
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -175,16 +176,25 @@ static void real_time_sleep(int64_t num, int32_t denom) {
   }
 }
 
+struct sleeping_thread *sleeping_thread_create(int64_t stand_by_time,
+                                               struct thread *thread) {
+  struct sleeping_thread *st = palloc_get_page(PAL_ZERO);
+  st->stand_by_time = stand_by_time;
+  st->thread = thread;
+  return st;
+}
+
 /* current thread is blocked and sent to waiting_list */
 static void thread_wait(int64_t ticks) {
   struct thread *curr = thread_current();
   enum intr_level old_level;
   ASSERT(!intr_context());
   old_level = intr_disable();
-  curr->stand_by_time = ticks;
+
+  struct sleeping_thread *st = sleeping_thread_create(ticks, curr);
 
   if (is_current_idle_thread()) {
-    list_insert_ordered(&waiting_list, &curr->elem, thread_stand_by_time_less,
+    list_insert_ordered(&waiting_list, &st->elem, thread_stand_by_time_less,
                         NULL);
   }
   thread_block();
@@ -194,8 +204,8 @@ static void thread_wait(int64_t ticks) {
 /* compares time of two threads and returns thread with shorter time */
 bool thread_stand_by_time_less(const struct list_elem *a,
                                const struct list_elem *b, void *aux) {
-  int64_t time_a = list_entry(a, struct thread, elem)->stand_by_time;
-  int64_t time_b = list_entry(b, struct thread, elem)->stand_by_time;
+  int64_t time_a = list_entry(a, struct sleeping_thread, elem)->stand_by_time;
+  int64_t time_b = list_entry(b, struct sleeping_thread, elem)->stand_by_time;
   return time_a < time_b;
 }
 
@@ -206,11 +216,13 @@ static void thread_ready(int64_t current_time) {
   th = list_begin(&waiting_list);
 
   while (th != list_end(&waiting_list)) {
-    struct thread *waiting_thread = list_entry(th, struct thread, elem);
+    struct sleeping_thread *waiting_thread =
+        list_entry(th, struct sleeping_thread, elem);
 
     if (current_time < waiting_thread->stand_by_time) break;
 
     th = list_remove(&waiting_thread->elem);
-    thread_unblock(waiting_thread);
+    thread_unblock(waiting_thread->thread);
+    palloc_free_page(waiting_thread);
   }
 }
