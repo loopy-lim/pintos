@@ -7,7 +7,7 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-#include "threads/malloc.h"
+#include "threads/palloc.h"
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -178,7 +178,7 @@ static void real_time_sleep(int64_t num, int32_t denom) {
 
 struct sleeping_thread *sleeping_thread_create(int64_t stand_by_time,
                                                struct thread *thread) {
-  struct sleeping_thread *st = malloc(sizeof(struct sleeping_thread));
+  struct sleeping_thread *st = palloc_get_page(PAL_ZERO);
   st->stand_by_time = stand_by_time;
   st->thread = thread;
   return st;
@@ -223,5 +223,6 @@ static void thread_ready(int64_t current_time) {
 
     th = list_remove(&waiting_thread->elem);
     thread_unblock(waiting_thread->thread);
+    palloc_free_page(waiting_thread);
   }
 }
