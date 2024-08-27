@@ -190,10 +190,11 @@ static void thread_wait(int64_t ticks) {
   enum intr_level old_level;
   ASSERT(!intr_context());
   old_level = intr_disable();
-  curr->stand_by_time = ticks;
+
+  struct sleeping_thread *st = sleeping_thread_create(ticks, curr);
 
   if (is_current_idle_thread()) {
-    list_insert_ordered(&waiting_list, &curr->elem, thread_stand_by_time_less,
+    list_insert_ordered(&waiting_list, &st->elem, thread_stand_by_time_less,
                         NULL);
   }
   thread_block();
@@ -203,8 +204,8 @@ static void thread_wait(int64_t ticks) {
 /* compares time of two threads and returns thread with shorter time */
 bool thread_stand_by_time_less(const struct list_elem *a,
                                const struct list_elem *b, void *aux) {
-  int64_t time_a = list_entry(a, struct thread, elem)->stand_by_time;
-  int64_t time_b = list_entry(b, struct thread, elem)->stand_by_time;
+  int64_t time_a = list_entry(a, struct sleeping_thread, elem)->stand_by_time;
+  int64_t time_b = list_entry(b, struct sleeping_thread, elem)->stand_by_time;
   return time_a < time_b;
 }
 
@@ -215,11 +216,12 @@ static void thread_ready(int64_t current_time) {
   th = list_begin(&waiting_list);
 
   while (th != list_end(&waiting_list)) {
-    struct thread *waiting_thread = list_entry(th, struct thread, elem);
+    struct sleeping_thread *waiting_thread =
+        list_entry(th, struct sleeping_thread, elem);
 
     if (current_time < waiting_thread->stand_by_time) break;
 
     th = list_remove(&waiting_thread->elem);
-    thread_unblock(waiting_thread);
+    thread_unblock(waiting_thread->thread);
   }
 }
