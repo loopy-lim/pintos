@@ -24,6 +24,16 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
+/* List of processes in THREAD_BLOCK state, that is, processes
+   that are blocked and added to waiting_list before being added to ready_list.
+ */
+static struct list waiting_list;
+
+static void thread_wait(int64_t ticks);
+bool thread_stand_by_time_less(const struct list_elem *a,
+                               const struct list_elem *b, void *aux);
+static void thread_ready(int64_t current_time);
+
 static intr_handler_func timer_interrupt;
 static bool too_many_loops(unsigned loops);
 static void busy_wait(int64_t loops);
@@ -42,6 +52,7 @@ void timer_init(void) {
   outb(0x40, count >> 8);
 
   intr_register_ext(0x20, timer_interrupt, "8254 Timer");
+  list_init(&waiting_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -161,5 +172,45 @@ static void real_time_sleep(int64_t num, int32_t denom) {
        down by 1000 to avoid the possibility of overflow. */
     ASSERT(denom % 1000 == 0);
     busy_wait(loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000));
+  }
+}
+
+/* current thread is blocked and sent to waiting_list */
+static void thread_wait(int64_t ticks) {
+  struct thread *curr = thread_current();
+  enum intr_level old_level;
+  ASSERT(!intr_context());
+  old_level = intr_disable();
+  curr->stand_by_time = ticks;
+
+  if (is_current_idle_thread()) {
+    list_insert_ordered(&waiting_list, &curr->elem, thread_stand_by_time_less,
+                        NULL);
+  }
+  do_schedule(THREAD_BLOCKED);
+  intr_set_level(old_level);
+}
+
+/* compares time of two threads and returns thread with shorter time */
+bool thread_stand_by_time_less(const struct list_elem *a,
+                               const struct list_elem *b, void *aux) {
+  int64_t time_a = list_entry(a, struct thread, elem)->stand_by_time;
+  int64_t time_b = list_entry(b, struct thread, elem)->stand_by_time;
+  return time_a < time_b;
+}
+
+/* goes through waiting_list and unblocks threads with time shorter then
+ * current_time and are sent to ready_list */
+static void thread_ready(int64_t current_time) {
+  struct list_elem *th;
+  th = list_begin(&waiting_list);
+
+  while (th != list_end(&waiting_list)) {
+    struct thread *waiting_thread = list_entry(th, struct thread, elem);
+
+    if (current_time < waiting_thread->stand_by_time) break;
+
+    th = list_remove(&waiting_thread->elem);
+    thread_unblock(waiting_thread);
   }
 }

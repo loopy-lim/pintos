@@ -28,11 +28,6 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
-/* List of processes in THREAD_BLOCK state, that is, processes
-   that are blocked and added to waiting_list before being added to ready_list.
- */
-static struct list waiting_list;
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -108,7 +103,6 @@ void thread_init(void) {
   /* Init the globla thread context */
   lock_init(&tid_lock);
   list_init(&ready_list);
-  list_init(&waiting_list);
   list_init(&destruction_req);
 
   /* Set up a thread structure for the running thread. */
@@ -288,44 +282,6 @@ void thread_yield(void) {
   if (curr != idle_thread) list_push_back(&ready_list, &curr->elem);
   do_schedule(THREAD_READY);
   intr_set_level(old_level);
-}
-
-/* current thread is blocked and sent to waiting_list */
-void thread_wait(int64_t ticks) {
-  struct thread *curr = thread_current();
-  enum intr_level old_level;
-  ASSERT(!intr_context());
-  old_level = intr_disable();
-  curr->stand_by_time = ticks;
-
-  if (curr != idle_thread) {
-    list_insert_ordered(&waiting_list, &curr->elem, less, NULL);
-  }
-  do_schedule(THREAD_BLOCKED);
-  intr_set_level(old_level);
-}
-
-/* compares time of two threads and returns thread with shorter time */
-bool less(const struct list_elem *a, const struct list_elem *b, void *aux) {
-  int64_t time_a = list_entry(a, struct thread, elem)->stand_by_time;
-  int64_t time_b = list_entry(b, struct thread, elem)->stand_by_time;
-  return time_a < time_b;
-}
-
-/* goes through waiting_list and unblocks threads with time shorter then
- * current_time and are sent to ready_list */
-void thread_ready(int64_t current_time) {
-  struct list_elem *th;
-  th = list_begin(&waiting_list);
-
-  while (th != list_end(&waiting_list)) {
-    struct thread *waiting_thread = list_entry(th, struct thread, elem);
-
-    if (current_time < waiting_thread->stand_by_time) break;
-
-    th = list_remove(&waiting_thread->elem);
-    thread_unblock(waiting_thread);
-  }
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
