@@ -284,6 +284,14 @@ bool is_thread_priority_less(const struct list_elem *t1,
   return thread1->priority > thread2->priority;
 }
 
+bool is_thread_priority_donation_less(const struct list_elem *t1,
+                                      const struct list_elem *t2,
+                                      void *aux UNUSED) {
+  struct thread *thread1 = list_entry(t1, struct thread, donation_elem);
+  struct thread *thread2 = list_entry(t2, struct thread, donation_elem);
+  return thread1->priority > thread2->priority;
+}
+
 void thread_yield_by_priority(void) {
   struct thread *curr = thread_current();
 
@@ -316,11 +324,40 @@ void thread_yield(void) {
 void thread_set_priority(int new_priority) {
   thread_current()->priority = new_priority;
   thread_current()->original_priority = new_priority;
+  thread_donate_restore();
   thread_yield_by_priority();
 }
 
 /* Returns the current thread's priority. */
 int thread_get_priority(void) { return thread_current()->priority; }
+
+void thread_donate_priority(void) {
+  struct thread *cur = thread_current();
+  struct thread *holder;
+
+  int depth = 0;
+  while (depth++ < 8) {
+    if (cur->waiting_lock == NULL) return;
+    holder = cur->waiting_lock->holder;
+    holder->priority = cur->priority;
+    cur = holder;
+  }
+}
+
+void thread_donate_restore(void) {
+  struct thread *cur = thread_current();
+  cur->priority = cur->original_priority;
+
+  if (list_empty(&cur->donation_list)) return;
+
+  list_sort(&cur->donation_list, is_thread_priority_donation_less, NULL);
+  struct thread *donation_front_thread =
+      list_entry(list_front(&cur->donation_list), struct thread, donation_elem);
+
+  if (donation_front_thread->priority > cur->priority) {
+    cur->priority = donation_front_thread->priority;
+  }
+}
 
 /* Sets the current thread's nice value to NICE. */
 void thread_set_nice(int nice UNUSED) {
