@@ -32,7 +32,7 @@ static struct list waiting_list;
 
 static void thread_wait(int64_t ticks);
 bool thread_stand_by_time_less(const struct list_elem *a,
-                               const struct list_elem *b, void *aux);
+                               const struct list_elem *b, void *aux UNUSED);
 static void thread_ready(int64_t current_time);
 
 static intr_handler_func timer_interrupt;
@@ -203,7 +203,7 @@ static void thread_wait(int64_t ticks) {
 
 /* compares time of two threads and returns thread with shorter time */
 bool thread_stand_by_time_less(const struct list_elem *a,
-                               const struct list_elem *b, void *aux) {
+                               const struct list_elem *b, void *aux UNUSED) {
   int64_t time_a = list_entry(a, struct sleeping_thread, elem)->stand_by_time;
   int64_t time_b = list_entry(b, struct sleeping_thread, elem)->stand_by_time;
   return time_a < time_b;
@@ -223,6 +223,7 @@ static void thread_ready(int64_t current_time) {
 
     th = list_remove(&waiting_thread->elem);
     thread_unblock(waiting_thread->thread);
+    thread_yield_by_priority();
     palloc_free_page(waiting_thread);
   }
 }

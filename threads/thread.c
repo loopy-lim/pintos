@@ -62,8 +62,6 @@ static void init_thread(struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
-bool thread_priority_less(struct list_elem *t1, struct list_elem *t2,
-                          void *aux);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -196,6 +194,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
 
   /* Add to run queue. */
   thread_unblock(t);
+  thread_yield_by_priority();
 
   return tid;
 }
@@ -228,23 +227,10 @@ void thread_unblock(struct thread *t) {
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, thread_priority_less, NULL);
-
-  if (thread_current() != idle_thread) {
-    if (t->priority > thread_current()->priority) {
-      thread_yield();
-    }
-  }
+  list_insert_ordered(&ready_list, &t->elem, is_thread_priority_less, NULL);
 
   t->status = THREAD_READY;
   intr_set_level(old_level);
-}
-
-bool thread_priority_less(struct list_elem *t1, struct list_elem *t2,
-                          void *aux) {
-  struct thread *thread1 = list_entry(t1, struct thread, elem);
-  struct thread *thread2 = list_entry(t2, struct thread, elem);
-  return thread1->priority > thread2->priority;
 }
 
 /* Returns the name of the running thread. */
@@ -300,10 +286,12 @@ bool is_thread_priority_less(const struct list_elem *t1,
 
 void thread_yield_by_priority(void) {
   struct thread *curr = thread_current();
+
+  if (list_empty(&ready_list) || curr == idle_thread) return;
+
   struct thread *first_ready_thread =
       list_entry(list_front(&ready_list), struct thread, elem);
-
-  if (is_thread_priority_less(&curr->elem, &first_ready_thread->elem, NULL)) {
+  if (!is_thread_priority_less(&curr->elem, &first_ready_thread->elem, NULL)) {
     thread_yield();
   }
 }
@@ -318,7 +306,8 @@ void thread_yield(void) {
 
   old_level = intr_disable();
   if (is_current_idle_thread())
-    list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
+    list_insert_ordered(&ready_list, &curr->elem, is_thread_priority_less,
+                        NULL);
   do_schedule(THREAD_READY);
   intr_set_level(old_level);
 }
@@ -326,7 +315,7 @@ void thread_yield(void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
   thread_current()->priority = new_priority;
-  thread_yield();
+  thread_yield_by_priority();
 }
 
 /* Returns the current thread's priority. */
