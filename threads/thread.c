@@ -286,9 +286,26 @@ void thread_exit(void) {
   NOT_REACHED();
 }
 
-bool is_current_idle_thread() {
+bool is_current_idle_thread(void) {
   struct thread *curr = thread_current();
   return curr != idle_thread;
+}
+
+bool is_thread_priority_less(const struct list_elem *t1,
+                             const struct list_elem *t2, void *aux UNUSED) {
+  struct thread *thread1 = list_entry(t1, struct thread, elem);
+  struct thread *thread2 = list_entry(t2, struct thread, elem);
+  return thread1->priority > thread2->priority;
+}
+
+void thread_yield_by_priority(void) {
+  struct thread *curr = thread_current();
+  struct thread *first_ready_thread =
+      list_entry(list_front(&ready_list), struct thread, elem);
+
+  if (is_thread_priority_less(&curr->elem, &first_ready_thread->elem, NULL)) {
+    thread_yield();
+  }
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and

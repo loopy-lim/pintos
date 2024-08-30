@@ -128,7 +128,10 @@ void thread_unblock(struct thread *);
 struct thread *thread_current(void);
 tid_t thread_tid(void);
 const char *thread_name(void);
-bool is_current_idle_thread();
+bool is_thread_priority_less(const struct list_elem *t1,
+                             const struct list_elem *t2, void *aux UNUSED);
+bool is_current_idle_thread(void);
+void thread_yield_by_priority(void);
 void thread_exit(void) NO_RETURN;
 void thread_yield(void);
 
