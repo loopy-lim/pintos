@@ -391,13 +391,14 @@ void thread_donate_restore(void) {
 
 /* Sets the current thread's nice value to NICE. */
 void thread_set_nice(int nice UNUSED) {
-  /* TODO: Your implementation goes here */
+  struct thread *cur = thread_current();
+  cur->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int thread_get_nice(void) {
-  /* TODO: Your implementation goes here */
-  return 0;
+  struct thread *cur = thread_current();
+  return cur->nice;
 }
 
 /* Returns 100 times the system load average. */
