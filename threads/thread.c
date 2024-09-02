@@ -433,6 +433,27 @@ int thread_get_recent_cpu(void) {
   return FP_TO_INT_ROUND(FP_MUL_INT(cur->recent_cpu, 100));
 }
 
+void clac_priority(struct thread *t) {
+  t->priority = PRI_MAX - FP_TO_INT(t->recent_cpu) / 4 - t->nice * 2;
+  if (t->priority < PRI_MIN) t->priority = PRI_MIN;
+  if (t->priority > PRI_MAX) t->priority = PRI_MAX;
+}
+
+void thread_calc_priority_mlfqs(void) {
+  for (struct list_elem *e = list_begin(&all_list); e != list_end(&all_list);
+       e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, all_elem);
+    if (t == idle_thread) continue;
+    clac_priority(t);
+  }
+}
+
+void thread_recent_cpu_increment(void) {
+  struct thread *cur = thread_current();
+  if (cur == idle_thread) return;
+  cur->recent_cpu = FP_ADD_INT(cur->recent_cpu, 1);
+}
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
