@@ -301,7 +301,7 @@ void thread_exit(void) {
 
 bool is_current_idle_thread(void) {
   struct thread *curr = thread_current();
-  return curr != idle_thread;
+  return curr == idle_thread;
 }
 
 bool is_thread_priority_less(const struct list_elem *t1,
@@ -330,7 +330,7 @@ void thread_yield_by_priority(void) {
     if (intr_context())
       intr_yield_on_return();
     else
-    thread_yield();
+      thread_yield();
   }
 }
 
@@ -343,7 +343,7 @@ void thread_yield(void) {
   ASSERT(!intr_context());
 
   old_level = intr_disable();
-  if (is_current_idle_thread())
+  if (!is_current_idle_thread())
     list_insert_ordered(&ready_list, &curr->elem, is_thread_priority_less,
                         NULL);
   do_schedule(THREAD_READY);
@@ -394,7 +394,7 @@ void thread_donate_restore(void) {
 void thread_set_nice(int nice UNUSED) {
   struct thread *cur = thread_current();
   cur->nice = nice;
-thread_calc_recent_cpu();
+  thread_calc_recent_cpu();
   thread_calc_priority_mlfqs();
   thread_yield_by_priority();
 }
@@ -406,7 +406,7 @@ int thread_get_nice(void) {
 }
 
 void thread_calc_load_avg(void) {
-  int ready_threads = !is_current_idle_thread() ? 0 : 1;
+  int ready_threads = is_current_idle_thread() ? 0 : 1;
   ready_threads += list_size(&ready_list);
 
   load_avg = FP_ADD(FP_DIV_INT(FP_MUL(INT_TO_FP(59), load_avg), 60),

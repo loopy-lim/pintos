@@ -227,15 +227,14 @@ void lock_release(struct lock *lock) {
 
   struct list_elem *e;
   if (!thread_mlfqs) {
-  for (e = list_begin(&thread_current()->donation_list);
-       e != list_end(&thread_current()->donation_list); e = list_next(e)) {
-    struct thread *t = list_entry(e, struct thread, donation_elem);
-    if (t->waiting_lock == lock) {
-      t->waiting_lock = NULL;
-      list_remove(e);
+    for (e = list_begin(&thread_current()->donation_list);
+         e != list_end(&thread_current()->donation_list); e = list_next(e)) {
+      struct thread *t = list_entry(e, struct thread, donation_elem);
+      if (t->waiting_lock == lock) {
+        list_remove(e);
+      }
     }
-  }
-  thread_donate_restore();
+    thread_donate_restore();
   }
 
   lock->holder = NULL;

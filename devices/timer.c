@@ -204,7 +204,7 @@ static void thread_wait(int64_t ticks) {
 
   struct sleeping_thread *st = sleeping_thread_create(ticks, curr);
 
-  if (is_current_idle_thread()) {
+  if (!is_current_idle_thread()) {
     list_insert_ordered(&waiting_list, &st->elem, thread_stand_by_time_less,
                         NULL);
   }
