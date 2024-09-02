@@ -401,10 +401,17 @@ int thread_get_nice(void) {
   return cur->nice;
 }
 
+void thread_calc_load_avg(void) {
+  int ready_threads = !is_current_idle_thread() ? 0 : 1;
+  ready_threads += list_size(&ready_list);
+
+  load_avg = FP_ADD(FP_DIV_INT(FP_MUL(INT_TO_FP(59), load_avg), 60),
+                    FP_DIV_INT(INT_TO_FP(ready_threads), 60));
+}
+
 /* Returns 100 times the system load average. */
 int thread_get_load_avg(void) {
-  /* TODO: Your implementation goes here */
-  return 0;
+  return FP_TO_INT_ROUND(FP_MUL_INT(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
