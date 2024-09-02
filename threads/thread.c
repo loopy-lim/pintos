@@ -393,6 +393,9 @@ void thread_donate_restore(void) {
 void thread_set_nice(int nice UNUSED) {
   struct thread *cur = thread_current();
   cur->nice = nice;
+thread_calc_recent_cpu();
+  thread_calc_priority_mlfqs();
+  thread_yield_by_priority();
 }
 
 /* Returns the current thread's nice value. */
