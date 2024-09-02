@@ -55,6 +55,20 @@ static unsigned thread_ticks; /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+static int load_avg;
+
+#define FP_TO_INT(x) ((x) >> 14)
+#define INT_TO_FP(x) ((x) << 14)
+#define FP_ADD(x, y) ((x) + (y))
+#define FP_SUB(x, y) ((x) - (y))
+#define FP_MUL(x, y) ((((int64_t)(x)) * (y)) >> 14)
+#define FP_DIV(x, y) ((((int64_t)(x)) << 14) / (y))
+#define FP_TO_INT_ROUND(x) \
+  ((x) >= 0 ? ((x) + (1 << 13)) >> 14 : ((x) - (1 << 13)) >> 14)
+#define FP_ADD_INT(x, n) ((x) + INT_TO_FP(n))
+#define FP_SUB_INT(x, n) ((x) - INT_TO_FP(n))
+#define FP_MUL_INT(x, n) ((x) * (n))
+#define FP_DIV_INT(x, n) ((x) / (n))
 
 static void kernel_thread(thread_func *, void *aux);
 
