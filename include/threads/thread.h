@@ -26,6 +26,9 @@ typedef int tid_t;
 #define PRI_MIN 0      /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
+#define NICE_DEFAULT 0 /* Default nice value. */
+#define RECENT_CPU_DEFAULT 0
+#define LOAD_AVG_DEFAULT 0
 
 /* A kernel thread or user process.
  *
@@ -91,9 +94,12 @@ struct thread {
   char name[16];                  /* Name (for debugging purposes). */
   int priority;                   /* Priority. */
   int original_priority;          /* Base priority. */
+  int nice;                       /* Nice value. */
+  int recent_cpu;                 /* Recent CPU. */
   struct list donation_list;      /* List of donation. */
   struct list_elem donation_elem; /* List element for donation. */
   struct lock *waiting_lock;      /* Lock that the thread is waiting for. */
+  struct list_elem all_elem;
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
@@ -151,6 +157,10 @@ int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
+void thread_calc_priority_mlfqs(void);
+void thread_recent_cpu_increment(void);
+void thread_calc_load_avg(void);
+void thread_calc_recent_cpu(void);
 
 void do_iret(struct intr_frame *tf);
 
