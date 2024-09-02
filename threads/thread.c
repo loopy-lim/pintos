@@ -294,6 +294,7 @@ void thread_exit(void) {
   /* Just set our status to dying and schedule another process.
      We will be destroyed during the call to schedule_tail(). */
   intr_disable();
+  list_remove(&thread_current()->all_elem);
   do_schedule(THREAD_DYING);
   NOT_REACHED();
 }
@@ -469,6 +470,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   t->magic = THREAD_MAGIC;
   list_init(&t->donation_list);
   t->waiting_lock = NULL;
+  list_push_back(&all_list, &t->all_elem);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
