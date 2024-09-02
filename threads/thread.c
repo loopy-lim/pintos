@@ -120,6 +120,7 @@ void thread_init(void) {
   /* Init the globla thread context */
   lock_init(&tid_lock);
   list_init(&ready_list);
+  list_init(&all_list);
   list_init(&destruction_req);
 
   /* Set up a thread structure for the running thread. */
@@ -127,6 +128,8 @@ void thread_init(void) {
   init_thread(initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid();
+  initial_thread->recent_cpu = RECENT_CPU_DEFAULT;
+  initial_thread->nice = NICE_DEFAULT;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -139,7 +142,7 @@ void thread_start(void) {
 
   /* Start preemptive thread scheduling. */
   intr_enable();
-
+  load_avg = LOAD_AVG_DEFAULT;
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down(&idle_started);
 }
@@ -208,6 +211,12 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   t->tf.ss = SEL_KDSEG;
   t->tf.cs = SEL_KCSEG;
   t->tf.eflags = FLAG_IF;
+
+  if (thread_mlfqs) {
+    t->recent_cpu = thread_current()->recent_cpu;
+    t->nice = thread_current()->nice;
+    t->priority = PRI_MAX;
+  }
 
   /* Add to run queue. */
   thread_unblock(t);
