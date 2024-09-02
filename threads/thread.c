@@ -414,10 +414,23 @@ int thread_get_load_avg(void) {
   return FP_TO_INT_ROUND(FP_MUL_INT(load_avg, 100));
 }
 
+void thread_calc_recent_cpu(void) {
+  for (struct list_elem *e = list_begin(&all_list); e != list_end(&all_list);
+       e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, all_elem);
+    if (t == idle_thread) continue;
+    t->recent_cpu =
+        FP_ADD_INT(FP_MUL(FP_DIV(FP_MUL_INT(load_avg, 2),
+                                 FP_ADD_INT(FP_MUL_INT(load_avg, 2), 1)),
+                          t->recent_cpu),
+                   t->nice);
+  }
+}
+
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu(void) {
-  /* TODO: Your implementation goes here */
-  return 0;
+  struct thread *cur = thread_current();
+  return FP_TO_INT_ROUND(FP_MUL_INT(cur->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
