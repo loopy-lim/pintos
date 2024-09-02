@@ -352,6 +352,7 @@ void thread_yield(void) {
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
+  if (thread_mlfqs) return;
   thread_current()->priority = new_priority;
   thread_current()->original_priority = new_priority;
   thread_donate_restore();
@@ -529,8 +530,10 @@ static void init_thread(struct thread *t, const char *name, int priority) {
 static struct thread *next_thread_to_run(void) {
   if (list_empty(&ready_list))
     return idle_thread;
-  else
+  else {
+    list_sort(&ready_list, is_thread_priority_less, NULL);
     return list_entry(list_pop_front(&ready_list), struct thread, elem);
+  }
 }
 
 /* Use iretq to launch the thread */
