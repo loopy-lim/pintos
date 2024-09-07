@@ -1,10 +1,14 @@
 {
   "files.associations": {
-    "palloc.h": "c",
-    "stdint.h": "c",
-    "flags.h": "c",
+    "stdio.h": "c",
+    "syscall-nr.h": "c",
     "thread.h": "c",
-    "algorithm": "c",
-    "stdio.h": "c"
+    "loader.h": "c",
+    "gdt.h": "c",
+    "interrupt.h": "c",
+    "flags.h": "c",
+    "string.h": "c",
+    "random.h": "c",
+    "*.inc": "c"
   }
 }

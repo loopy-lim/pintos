@@ -130,6 +130,7 @@ void thread_init(void) {
   initial_thread->tid = allocate_tid();
   initial_thread->recent_cpu = RECENT_CPU_DEFAULT;
   initial_thread->nice = NICE_DEFAULT;
+  list_init(&initial_thread->child_list);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -211,6 +212,10 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   t->tf.ss = SEL_KDSEG;
   t->tf.cs = SEL_KCSEG;
   t->tf.eflags = FLAG_IF;
+
+  t->parent_tid = thread_current()->tid;
+  list_init(&t->child_list);
+  list_push_back(&thread_current()->child_list, &t->child_elem);
 
   if (thread_mlfqs) {
     t->recent_cpu = thread_current()->recent_cpu;
