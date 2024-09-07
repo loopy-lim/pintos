@@ -7,6 +7,8 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "filesys/filesys.h"
+#include "userprog/file_descriptor.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -46,7 +48,55 @@ void syscall_write(struct intr_frame *f) {
   }
 }
 
-void syscall_exit(struct intr_frame *f) { thread_exit(); }
+void syscall_exit(struct intr_frame *f) {
+  struct thread *curr = thread_current();
+  curr->exit_status = f->R.rdi;
+  thread_exit();
+}
+
+void syscall_create(struct intr_frame *f) {
+  const char *file = (const char *)f->R.rdi;
+  unsigned initial_size = f->R.rsi;
+  struct thread *curr = thread_current();
+
+  if (file == NULL || is_kernel_vaddr(file) ||
+      pml4e_walk(curr->pml4, file, false) == NULL) {
+    curr->exit_status = -1;
+    thread_exit();
+    return;
+  }
+
+  f->R.rax = filesys_create(file, initial_size);
+}
+
+void syscall_open(struct intr_frame *f) {
+  const char *file_name = (const char *)f->R.rdi;
+  struct thread *curr = thread_current();
+
+  if (file_name == NULL || is_kernel_vaddr(file_name) ||
+      pml4e_walk(curr->pml4, file_name, false) == NULL) {
+    curr->exit_status = -1;
+    thread_exit();
+    return;
+  }
+
+  int file = filesys_open(file_name);
+  if (file == NULL) {
+    f->R.rax = -1;
+    return;
+  }
+
+  int fd = create_fd(file, curr);
+
+  f->R.rax = fd;
+}
+
+void syscall_close(struct intr_frame *f) {
+  struct fdid *fdid_ = f->R.rdi;
+  if (fdid_ == STDOUT_FILENO || fdid_ == STDIN_FILENO) return;
+  struct thread *curr = thread_current();
+  f->R.rax = delete_fd(fdid_, curr);
+}
 
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
@@ -57,6 +107,15 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_EXIT:
       syscall_exit(f);
+      break;
+    case SYS_CREATE:
+      syscall_create(f);
+      break;
+    case SYS_OPEN:
+      syscall_open(f);
+      break;
+    case SYS_CLOSE:
+      syscall_close(f);
       break;
     default:
       printf("%d\n", syscall_call_number);

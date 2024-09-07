@@ -31,9 +31,7 @@ static void __do_fork(void *);
 /* General process initializer for initd and other process. */
 static void process_init(void) {
   struct thread *current = thread_current();
-  struct semaphore sema_wait;
-  sema_init(&sema_wait, 0);
-  current->sema_wait = &sema_wait;
+  // sema_init(&current->sema_wait, 0);
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -211,15 +209,11 @@ int process_wait(tid_t child_tid) {
    * XXX:       implementing the process_wait. */
   struct thread *child = get_thread_by_tid(child_tid);
   if (child == NULL) return -1;
+  sema_down(&child->sema_wait);
 
-  sema_down(child->sema_wait);
-
-  if (child->tf.R.rax != -1) {
-    list_remove(&child->child_elem);
-    printf("%s: exit(%d)\n", child->name, child->tf.R.rax);
-    return child->tf.R.rax;
-  }
-  return -1;
+  list_remove(&child->child_elem);
+  printf("%s: exit(%d)\n", child->name, child->exit_status);
+  return child->exit_status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -229,8 +223,8 @@ void process_exit(void) {
    * TODO: project2/process_termination.html).
    * TODO: We recommend you to implement process resource cleanup here. */
   struct thread *curr = thread_current();
+  sema_up(&curr->sema_wait);
   process_cleanup();
-  sema_up(curr->sema_wait);
 }
 
 /* Free the current process's resources. */

@@ -9,6 +9,11 @@
     "flags.h": "c",
     "string.h": "c",
     "random.h": "c",
-    "*.inc": "c"
+    "*.inc": "c",
+    "synch.h": "c",
+    "filesys.h": "c",
+    "file_descriptor_table.h": "c",
+    "lib.h": "c",
+    "file_descriptor.h": "c"
   }
 }

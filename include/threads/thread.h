@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -100,10 +101,12 @@ struct thread {
   struct list_elem donation_elem; /* List element for donation. */
   struct lock *waiting_lock;      /* Lock that the thread is waiting for. */
   struct list_elem all_elem;
+  int exit_status;
   tid_t parent_tid;
   struct list child_list;
   struct list_elem child_elem;
-  struct semaphore *sema_wait;
+  struct semaphore sema_wait;
+  struct list file_descriptor_table;
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
