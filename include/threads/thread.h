@@ -107,6 +107,7 @@ struct thread {
   struct list_elem child_elem;
   struct semaphore sema_wait;
   struct list file_descriptor_table;
+  struct file *self_file;
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */

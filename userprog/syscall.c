@@ -9,6 +9,9 @@
 #include "intrinsic.h"
 #include "filesys/filesys.h"
 #include "userprog/file_descriptor.h"
+#include "userprog/process.h"
+#include "threads/palloc.h"
+#include "userprog/exception.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -46,6 +49,71 @@ void syscall_write(struct intr_frame *f) {
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, buffer_size);
   }
+
+  if (fd == STDIN_FILENO) {
+    f->R.rax = -1;
+    return;
+  }
+
+  struct thread *curr = thread_current();
+  if (buffer == NULL || is_kernel_vaddr(buffer) ||
+      pml4e_walk(curr->pml4, buffer, false) == NULL) {
+    curr->exit_status = -1;
+    thread_exit();
+    return -1;
+  }
+
+  int bytes_written = write_fd(fd, buffer, buffer_size, curr);
+
+  f->R.rax = bytes_written;
+}
+
+void syscall_fork(struct intr_frame *f) {
+  char *name = (char *)f->R.rdi;
+  tid_t child_tid = process_fork(name, f);
+
+  f->R.rax = child_tid;
+}
+
+void syscall_wait(struct intr_frame *f) {
+  tid_t child_tid = f->R.rdi;
+  int exit_status = process_wait(child_tid);
+  f->R.rax = exit_status;
+}
+
+void syscall_exec(struct intr_frame *f) {
+  void *f_name = (void *)f->R.rdi;
+  if (f_name == NULL || is_kernel_vaddr(f_name) ||
+      pml4e_walk(thread_current()->pml4, f_name, false) == NULL) {
+    thread_current()->exit_status = -1;
+    thread_exit();
+    return;
+  }
+
+  int f_name_len = strlen(f_name) + 1;
+  if (f_name_len > PGSIZE) {
+    f->R.rax = -1;
+    return;
+  }
+
+  char *f_name_copy = palloc_get_page(0);
+  if (f_name_copy == NULL) {
+    f->R.rax = -1;
+    return;
+  }
+
+  strlcpy(f_name_copy, (char *)f_name, PGSIZE);
+
+  int status = process_exec(f_name_copy);
+
+  if (status < 0) {
+    struct thread *curr = thread_current();
+    curr->exit_status = -1;
+    thread_exit();
+    return;
+  }
+
+  f->R.rax = status;
 }
 
 void syscall_exit(struct intr_frame *f) {
@@ -80,13 +148,13 @@ void syscall_open(struct intr_frame *f) {
     return;
   }
 
-  int file = filesys_open(file_name);
+  struct file *file = filesys_open(file_name);
   if (file == NULL) {
     f->R.rax = -1;
     return;
   }
 
-  int fd = create_fd(file, curr);
+  int fd = open_fd(file, curr);
 
   f->R.rax = fd;
 }
@@ -98,25 +166,74 @@ void syscall_close(struct intr_frame *f) {
   f->R.rax = delete_fd(fdid_, curr);
 }
 
+void syscall_read(struct intr_frame *f) {
+  int fd = f->R.rdi;
+  void *buffer = (void *)f->R.rsi;
+  unsigned int buffer_size = f->R.rdx;
+
+  if (fd == STDIN_FILENO) {
+    for (unsigned int i = 0; i < buffer_size; i++) {
+      ((char *)buffer)[i] = input_getc();
+    }
+  }
+
+  if (fd == STDOUT_FILENO) {
+    f->R.rax = -1;
+    return;
+  }
+
+  struct thread *curr = thread_current();
+  if (buffer == NULL || is_kernel_vaddr(buffer) ||
+      pml4e_walk(curr->pml4, buffer, false) == NULL) {
+    curr->exit_status = -1;
+    thread_exit();
+    return -1;
+  }
+
+  int bytes_read = read_fd(fd, buffer, buffer_size, curr);
+
+  f->R.rax = bytes_read;
+}
+
+void syscall_file_size(struct intr_frame *f) {
+  struct fdid *fdid_ = f->R.rdi;
+  struct thread *curr = thread_current();
+  f->R.rax = file_size_fd(fdid_, curr);
+}
+
+void syscall_file_seek(struct intr_frame *f) {
+  struct fdid *fdid_ = f->R.rdi;
+  unsigned position = f->R.rsi;
+  struct thread *curr = thread_current();
+  seek_fd(fdid_, position, curr);
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   int syscall_call_number = f->R.rax;
   switch (syscall_call_number) {
     case SYS_WRITE:
-      syscall_write(f);
-      break;
+      return syscall_write(f);
     case SYS_EXIT:
-      syscall_exit(f);
-      break;
+      return syscall_exit(f);
     case SYS_CREATE:
-      syscall_create(f);
-      break;
+      return syscall_create(f);
     case SYS_OPEN:
-      syscall_open(f);
-      break;
+      return syscall_open(f);
     case SYS_CLOSE:
-      syscall_close(f);
-      break;
+      return syscall_close(f);
+    case SYS_READ:
+      return syscall_read(f);
+    case SYS_FILESIZE:
+      return syscall_file_size(f);
+    case SYS_FORK:
+      return syscall_fork(f);
+    case SYS_WAIT:
+      return syscall_wait(f);
+    case SYS_EXEC:
+      return syscall_exec(f);
+    case SYS_SEEK:
+      return syscall_file_seek(f);
     default:
       printf("%d\n", syscall_call_number);
       printf("system call!\n");
