@@ -20,6 +20,7 @@
 #include "intrinsic.h"
 #include "../threads/synch.h"
 #include "userprog/file_descriptor.h"
+#include "filesys/file.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -28,13 +29,10 @@ static void process_cleanup(void);
 static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
+struct thread *get_thread_by_tid(tid_t tid);
 
 /* General process initializer for initd and other process. */
-static void process_init(void) {
-  struct thread *current = thread_current();
-  // sema_init(&current->sema_wait, 0);
-  // list_init(&current->child_list);
-}
+static void process_init(void) { struct thread *current = thread_current(); }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
  * The new thread may be scheduled (and may even exit)
@@ -66,34 +64,32 @@ static void initd(void *f_name) {
 #ifdef VM
   supplemental_page_table_init(&thread_current()->spt);
 #endif
-
   process_init();
 
-  if (process_exec(f_name) < 0) PANIC("Fail to launch initd\n");
+  if (process_exec(f_name, NULL) < 0) PANIC("Fail to launch initd\n");
   NOT_REACHED();
 }
 
 struct process_fork_args {
   struct thread *parent;
   struct intr_frame *if_;
-  struct semaphore is_finish;
+  struct semaphore fork_load_wait;
+  int exit_status;
 };
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t process_fork(const char *name, struct intr_frame *if_) {
   /* Clone current thread to new thread.*/
-  struct process_fork_args *args =
-      (struct process_fork_args *)malloc(sizeof(struct process_fork_args));
-  args->parent = thread_current();
-  args->if_ = if_;
-  sema_init(&args->is_finish, 0);
-  tid_t child_tid = thread_create(name, PRI_DEFAULT, __do_fork, args);
+  struct process_fork_args args;
+  args.parent = thread_current();
+  args.if_ = if_;
+  sema_init(&args.fork_load_wait, 0);
 
-  sema_down(&args->is_finish);
-  if (child_tid == TID_ERROR) free(args);
-
-  return child_tid;
+  tid_t child_tid = thread_create(name, PRI_DEFAULT, __do_fork, &args);
+  struct thread *child = get_thread_by_tid(child_tid);
+  sema_down(&args.fork_load_wait);
+  return args.exit_status;
 }
 
 #ifndef VM
@@ -107,9 +103,6 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
   bool writable;
 
   /* 1. TODO: If the parent_page is kernel page, then return immediately. */
-
-  if (pte == NULL) return true;
-  if (current->pml4 == NULL) return false;
   if (is_kernel_vaddr(va)) return true;
 
   /* 2. Resolve VA from the parent's page map level 4. */
@@ -124,7 +117,7 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
    *    TODO: check whether parent's page is writable or not (set WRITABLE
    *    TODO: according to the result). */
   memcpy(newpage, parent_page, PGSIZE);
-  writable = (*pte & PTE_W) != 0;
+  writable = is_writable(pte);
 
   /* 5. Add new page to child's page table at address VA with WRITABLE
    *    permission. */
@@ -146,8 +139,8 @@ static void __do_fork(void *aux) {
   struct process_fork_args *args = (struct process_fork_args *)aux;
   struct intr_frame *parent_if = args->if_;
   struct thread *parent = args->parent;
-  struct semaphore *is_finish = &args->is_finish;
   struct thread *current = thread_current();
+  struct semaphore *fork_load_wait = &args->fork_load_wait;
   /* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 
   bool succ = true;
@@ -172,42 +165,29 @@ static void __do_fork(void *aux) {
    * TODO:       in include/filesys/file.h. Note that parent should not return
    * TODO:       from the fork() until this function successfully duplicates
    * TODO:       the resources of parent.*/
-  struct list_elem *e;
-  for (e = list_begin(&parent->file_descriptor_table);
-       e != list_end(&parent->file_descriptor_table); e = list_next(e)) {
-    struct fd *fd = list_entry(e, struct fd, elem);
-    struct file *file = file_duplicate(fd->file);
-    if (file == NULL) {
-      succ = false;
-      break;
-    }
-    struct fd *new_fd = (struct fd *)malloc(sizeof(struct fd));
-    new_fd->file = file;
-    new_fd->fd = fd->fd;
-    list_push_back(&current->file_descriptor_table, &new_fd->elem);
-  }
+  if (!duplicate_threads_fd(parent, current)) goto error;
+  current->self_file = file_duplicate(parent->self_file);
+  if (current->self_file == NULL) goto error;
 
   process_init();
 
-  list_init(&current->child_list);
-  current->parent_tid = parent->tid;
-
   if_.R.rax = 0;
 
+  args->exit_status = current->tid;
+  sema_up(fork_load_wait);
   /* Finally, switch to the newly created process. */
-  sema_up(is_finish);
-  free(args);
   if (succ) do_iret(&if_);
 error:
-  sema_up(is_finish);
-  free(args);
-  parent->tf.R.rax = -1;
+  args->exit_status = -1;
+  list_remove(&current->child_elem);
+  sema_up(&current->exit_wait);
+  sema_up(fork_load_wait);
   thread_exit();
 }
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
-int process_exec(void *f_name) {
+int process_exec(void *f_name, struct semaphore *sema_from_syscall) {
   char *file_name = f_name;
   bool success;
 
@@ -225,8 +205,9 @@ int process_exec(void *f_name) {
   /* And then load the binary */
   success = load(file_name, &_if);
 
-  /* If load failed, quit. */
   palloc_free_page(file_name);
+  if (sema_from_syscall != NULL) sema_up(sema_from_syscall);
+  /* If load failed, quit. */
   if (!success) return -1;
 
   /* Start switched process. */
@@ -266,27 +247,30 @@ int process_wait(tid_t child_tid) {
   struct thread *curr = thread_current();
   if (child == NULL) return -1;
 
-  /* 부모 thread가 wait를 하고 있는 중인지 체크*/
   struct list_elem *e;
-  for (e = list_begin(&child->sema_wait.waiters);
-       e != list_end(&child->sema_wait.waiters); e = list_next(e)) {
+  for (e = list_begin(&child->child_wait.waiters);
+       e != list_end(&child->child_wait.waiters); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, elem);
     if (t->tid == curr->tid) return -1;
   }
 
-  sema_down(&child->sema_wait);
-  list_remove(&child->child_elem);
+  sema_down(&child->child_wait);
 
+  list_remove(&child->child_elem);
+  int exit_code = child->exit_status;
   printf("%s: exit(%d)\n", child->name, child->exit_status);
-  return child->exit_status;
+
+  sema_up(&child->exit_wait);
+  return exit_code;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
   struct thread *curr = thread_current();
-  sema_up(&curr->sema_wait);
+  sema_up(&curr->child_wait);
+  sema_down(&curr->exit_wait);
   process_cleanup();
-  file_close(curr->self_file);
+  remove_all_fd(curr);
 }
 
 /* Free the current process's resources. */
@@ -313,6 +297,8 @@ static void process_cleanup(void) {
     pml4_activate(NULL);
     pml4_destroy(pml4);
   }
+  if (curr->self_file != NULL) file_close(curr->self_file);
+  curr->self_file = NULL;
 }
 
 /* Sets up the CPU for running user code in the nest thread.
@@ -399,7 +385,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   /* Allocate and activate page directory. */
   t->pml4 = pml4_create();
   if (t->pml4 == NULL) goto done;
-  process_activate(thread_current());
+  process_activate(t);
 
   char *token, *save_ptr;
   token = strtok_r(file_name, " ", &save_ptr);
@@ -410,6 +396,8 @@ static bool load(const char *file_name, struct intr_frame *if_) {
     printf("load: %s: open failed\n", token);
     goto done;
   }
+  t->self_file = file;
+  file_deny_write(file);
 
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
@@ -511,12 +499,10 @@ static bool load(const char *file_name, struct intr_frame *if_) {
 
   if_->rsp = stack_pointer;
 
-  file_deny_write(file);
   success = true;
 
 done:
   /* We arrive here whether the load is successful or not. */
-  t->self_file = file;
   return success;
 }
 
@@ -653,8 +639,8 @@ static bool install_page(void *upage, void *kpage, bool writable) {
 }
 #else
 /* From here, codes will be used after project 3.
- * If you want to implement the function for only project 2, implement it on the
- * upper block. */
+ * If you want to implement the function for only project 2, implement it on
+ * the upper block. */
 
 static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */

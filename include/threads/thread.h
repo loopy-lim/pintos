@@ -105,9 +105,11 @@ struct thread {
   tid_t parent_tid;
   struct list child_list;
   struct list_elem child_elem;
-  struct semaphore sema_wait;
-  struct list file_descriptor_table;
+  struct semaphore child_wait;
+  struct semaphore exit_wait;
+  struct semaphore fork_load_wait;
   struct file *self_file;
+  struct file *file_descriptor_table[128];
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */

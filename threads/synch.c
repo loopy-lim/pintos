@@ -60,18 +60,19 @@ void sema_init(struct semaphore *sema, unsigned value) {
    thread will probably turn interrupts back on. This is
    sema_down function. */
 void sema_down(struct semaphore *sema) {
-  enum intr_level old_level;
-
   ASSERT(sema != NULL);
   ASSERT(!intr_context());
 
+  enum intr_level old_level;
   old_level = intr_disable();
+
   while (sema->value == 0) {
     list_insert_ordered(&sema->waiters, &thread_current()->elem,
                         is_thread_priority_less, NULL);
     thread_block();
   }
   sema->value--;
+
   intr_set_level(old_level);
 }
 
@@ -102,11 +103,11 @@ bool sema_try_down(struct semaphore *sema) {
 
    This function may be called from an interrupt handler. */
 void sema_up(struct semaphore *sema) {
-  enum intr_level old_level;
-
   ASSERT(sema != NULL);
 
+  enum intr_level old_level;
   old_level = intr_disable();
+
   if (!list_empty(&sema->waiters)) {
     list_sort(&sema->waiters, is_thread_priority_less, NULL);
     thread_unblock(
@@ -183,6 +184,8 @@ void lock_acquire(struct lock *lock) {
   ASSERT(!intr_context());
   ASSERT(!lock_held_by_current_thread(lock));
 
+  enum intr_level old_level = intr_disable();
+
   struct thread *cur = thread_current();
   struct thread *holder = lock->holder;
 
@@ -196,6 +199,9 @@ void lock_acquire(struct lock *lock) {
 
   sema_down(&lock->semaphore);
   lock->holder = thread_current();
+  thread_current()->waiting_lock = NULL;
+
+  intr_set_level(old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -224,11 +230,13 @@ bool lock_try_acquire(struct lock *lock) {
 void lock_release(struct lock *lock) {
   ASSERT(lock != NULL);
   ASSERT(lock_held_by_current_thread(lock));
+  enum intr_level old_level = intr_disable();
+  struct thread *curr = thread_current();
 
   struct list_elem *e;
   if (!thread_mlfqs) {
-    for (e = list_begin(&thread_current()->donation_list);
-         e != list_end(&thread_current()->donation_list); e = list_next(e)) {
+    for (e = list_begin(&curr->donation_list);
+         e != list_end(&curr->donation_list); e = list_next(e)) {
       struct thread *t = list_entry(e, struct thread, donation_elem);
       if (t->waiting_lock == lock) {
         list_remove(e);
@@ -239,6 +247,8 @@ void lock_release(struct lock *lock) {
 
   lock->holder = NULL;
   sema_up(&lock->semaphore);
+
+  intr_set_level(old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false

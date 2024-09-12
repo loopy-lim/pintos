@@ -21,6 +21,9 @@
     "debug.h": "c",
     "malloc.h": "c",
     "file.h": "c",
-    "exception.h": "c"
+    "exception.h": "c",
+    "palloc.h": "c",
+    "syn-read.h": "c",
+    "init.h": "c"
   }
 }
