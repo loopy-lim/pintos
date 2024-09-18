@@ -1,0 +1,20 @@
+{
+  "configurations": [
+    {
+      "name": "linux",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/include/lib",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/include/lib/kernel",
+        "${workspaceFolder}/include/lib/user"
+      ],
+      "intelliSenseMode": "linux-gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "c11",
+      "cppStandard": "gnu++14",
+      "defines": ["USERPROG", "FILESYS"]
+    }
+  ],
+  "version": 4
+}
