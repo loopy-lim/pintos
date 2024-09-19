@@ -12,6 +12,8 @@
     "vm.h": "c",
     "list.h": "c",
     "synch.h": "c",
-    "syscall-nr.h": "c"
+    "syscall-nr.h": "c",
+    "file_descriptor.h": "c",
+    "file.h": "c"
   },
 }

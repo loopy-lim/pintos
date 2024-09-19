@@ -38,6 +38,7 @@ struct process {
   struct thread *parent;
   struct thread *self;
   struct file *self_file;
+  struct file *files[128];
   struct list children;
   struct list_elem elem;
   int exit_status;

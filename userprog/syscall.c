@@ -5,6 +5,9 @@
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
+#include "userprog/file_descriptor.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
 
@@ -36,6 +39,18 @@ void syscall_init(void) {
             FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 
+void exit_(int status) {
+  struct thread *t = thread_current();
+  t->process.exit_status = status;
+  thread_exit();
+}
+
+void check_user_vaddr(const void *vaddr) {
+  if (!is_user_vaddr(vaddr)) {
+    exit_(-1);
+  }
+}
+
 void syscall_write(struct intr_frame *f) {
   int fd = f->R.rdi;
   const void *buffer = (const void *)f->R.rsi;
@@ -56,6 +71,23 @@ void syscall_exit(struct intr_frame *f) {
   thread_exit();
 }
 
+void syscall_create(struct intr_frame *f) {
+  const char *file = (const char *)f->R.rdi;
+  const unsigned initial_size = f->R.rsi;
+  check_user_vaddr(file);
+
+  if (file == NULL) {
+    exit_(-1);
+  }
+
+  if (strlen(file) == 0) {
+    exit_(-1);
+  }
+
+  off_t off_ = fd_create(file, initial_size);
+  f->R.rax = off_;
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
@@ -64,6 +96,9 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_EXIT:
       syscall_exit(f);
+      break;
+    case SYS_CREATE:
+      syscall_create(f);
       break;
     default:
       printf("%d \n", f->R.rax);
