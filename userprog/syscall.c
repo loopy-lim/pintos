@@ -208,6 +208,18 @@ void syscall_seek(struct intr_frame *f) {
   fd_seek(fd, position);
 }
 
+void syscall_remove(struct intr_frame *f) {
+  const char *file_name = (const char *)f->R.rdi;
+  check_user_vaddr(file_name);
+
+  if (file_name == NULL && strlen(file_name) == 0) {
+    exit_(-1);
+  }
+
+  bool success = fd_remove(file_name);
+  f->R.rax = success;
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
@@ -243,6 +255,9 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_SEEK:
       syscall_seek(f);
+      break;
+    case SYS_REMOVE:
+      syscall_remove(f);
       break;
     default:
       printf("%lld \n", f->R.rax);

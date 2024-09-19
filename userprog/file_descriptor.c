@@ -24,6 +24,11 @@ void fd_seek(fdid_t fd, unsigned position) {
   file_seek(proc->files[fd], position);
 }
 
+bool fd_remove(const char *file_name) {
+  bool is_remove = filesys_remove(file_name);
+  return is_remove;
+}
+
 fdid_t fd_open(const char *file_name) {
   struct file *file = filesys_open(file_name);
   if (file == NULL) return -1;

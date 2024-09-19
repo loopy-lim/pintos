@@ -15,6 +15,7 @@
     "syscall-nr.h": "c",
     "file_descriptor.h": "c",
     "file.h": "c",
-    "filesys.h": "c"
+    "filesys.h": "c",
+    "*.inc": "c"
   },
 }
