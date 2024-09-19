@@ -14,6 +14,7 @@
     "synch.h": "c",
     "syscall-nr.h": "c",
     "file_descriptor.h": "c",
-    "file.h": "c"
+    "file.h": "c",
+    "filesys.h": "c"
   },
 }

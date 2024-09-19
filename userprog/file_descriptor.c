@@ -38,3 +38,19 @@ bool fd_close(fdid_t fd) {
   proc->files[fd] = NULL;
   return true;
 }
+
+off_t fd_read(fdid_t fd, void *buffer, unsigned size) {
+  struct process *proc = &thread_current()->process;
+  if (proc->files[fd] == NULL) return false;
+
+  unsigned read_bytes = file_read(proc->files[fd], buffer, size);
+  return read_bytes;
+}
+
+off_t fd_file_size(fdid_t fd) {
+  struct process *proc = &thread_current()->process;
+  if (proc->files[fd] == NULL) return -1;
+
+  off_t file_size = file_length(proc->files[fd]);
+  return file_size;
+}

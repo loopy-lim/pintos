@@ -107,6 +107,42 @@ void syscall_close(struct intr_frame *f) {
   f->R.rax = success;
 }
 
+void syscall_read(struct intr_frame *f) {
+  int fd = f->R.rdi;
+  void *buffer = (void *)f->R.rsi;
+  unsigned size = f->R.rdx;
+
+  check_user_vaddr(buffer);
+
+  if (fd < 0 || fd > 127) {
+    exit_(-1);
+  }
+
+  if (fd == STDIN_FILENO) {
+    for (unsigned i = 0; i < size; i++) {
+      ((char *)buffer)[i] = input_getc();
+    }
+    f->R.rax = size;
+    return;
+  }
+  if (fd == STDOUT_FILENO) {
+    f->R.rax = -1;
+    return;
+  }
+  f->R.rax = fd_read(fd, buffer, size);
+}
+
+void syscall_filesize(struct intr_frame *f) {
+  int fd = f->R.rdi;
+
+  if (fd < 0 || fd > 127) {
+    exit_(-1);
+  }
+
+  off_t file_size = fd_file_size(fd);
+  f->R.rax = file_size;
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
@@ -124,6 +160,12 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_CLOSE:
       syscall_close(f);
+      break;
+    case SYS_READ:
+      syscall_read(f);
+      break;
+    case SYS_FILESIZE:
+      syscall_filesize(f);
       break;
     default:
       printf("%d \n", f->R.rax);
