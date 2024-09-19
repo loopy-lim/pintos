@@ -152,6 +152,7 @@ static void __do_fork(void *aux) {
   current->process.parent = &parent->process;
   current->process.self_file = file_duplicate(parent->process.self_file);
   if (current->process.self_file == NULL) goto error;
+  file_deny_write(current->process.self_file);
 
   process_init();
   args->status = current->tid;
@@ -217,11 +218,21 @@ struct process *get_child_process(tid_t tid) {
  * does nothing. */
 int process_wait(tid_t child_tid) {
   struct process *child = get_child_process(child_tid);
+  struct thread *curr = thread_current();
+
   if (child == NULL) return -1;
+
+  struct list_elem *e;
+  for (e = list_begin(&child->sema_wait.waiters);
+       e != list_end(&child->sema_wait.waiters); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, elem);
+    if (t->tid == curr->tid) return -1;
+  }
 
   sema_down(&child->sema_wait);
   int status = child->exit_status;
   printf("%s: exit(%d)\n", child->self->name, child->exit_status);
+  list_remove(&child->elem);
   sema_up(&child->sema_exit);
   return status;
 }
@@ -232,8 +243,8 @@ void process_exit(void) {
 
   sema_up(&curr->process.sema_wait);
   sema_down(&curr->process.sema_exit);
+
   file_close(curr->process.self_file);
-  list_remove(&curr->process.elem);
 
   process_cleanup();
 }

@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/palloc.h"
 #include "userprog/gdt.h"
 #include "userprog/file_descriptor.h"
 #include "userprog/process.h"
@@ -36,6 +37,8 @@ void syscall_filesize(struct intr_frame *f);
 #define MSR_STAR 0xc0000081         /* Segment selector msr */
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
+
+struct semaphore sema;
 
 void syscall_init(void) {
   write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48 | ((uint64_t)SEL_KCSEG)
@@ -169,8 +172,24 @@ void syscall_fork(struct intr_frame *f) {
 }
 
 void syscall_exec(struct intr_frame *f) {
-  const char *file_name = (const char *)f->R.rdi;
-  f->R.rax = process_exec(file_name);
+  char *f_name = (char *)f->R.rdi;
+  check_user_vaddr(f_name);
+
+  int f_name_len = strlen(f_name) + 1;
+  if (f_name_len > PGSIZE) {
+    f->R.rax = -1;
+    return;
+  }
+
+  char *f_name_copy = palloc_get_page(0);
+  if (f_name_copy == NULL) {
+    f->R.rax = -1;
+    return;
+  }
+
+  strlcpy(f_name_copy, f_name, PGSIZE);
+  int status = process_exec(f_name_copy);
+  f->R.rax = status;
 }
 
 void syscall_wait(struct intr_frame *f) {
