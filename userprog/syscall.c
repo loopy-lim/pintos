@@ -49,14 +49,24 @@ void syscall_write(struct intr_frame *f) {
   }
 }
 
+void syscall_exit(struct intr_frame *f) {
+  int exit_status = f->R.rdi;
+  struct thread *t = thread_current();
+  t->process.exit_status = exit_status;
+  thread_exit();
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
     case SYS_WRITE:
       syscall_write(f);
       break;
+    case SYS_EXIT:
+      syscall_exit(f);
+      break;
     default:
-      printf("%d", f->R.rax);
+      printf("%d \n", f->R.rax);
       printf("system call!\n");
       thread_exit();
       break;

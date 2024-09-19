@@ -5,6 +5,13 @@
     "flags.h": "c",
     "thread.h": "c",
     "algorithm": "c",
-    "stdio.h": "c"
-  }
+    "stdio.h": "c",
+    "process.h": "c",
+    "interrupt.h": "c",
+    "debug.h": "c",
+    "vm.h": "c",
+    "list.h": "c",
+    "synch.h": "c",
+    "syscall-nr.h": "c"
+  },
 }

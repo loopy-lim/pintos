@@ -26,6 +26,7 @@ static void process_cleanup(void);
 static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
+struct process *get_child_process(tid_t tid);
 
 /* General process initializer for initd and other process. */
 static void process_init(void) { struct thread *current = thread_current(); }
@@ -46,7 +47,7 @@ tid_t process_create_initd(const char *file_name) {
   strlcpy(fn_copy, file_name, PGSIZE);
 
   char *save_ptr;
-  file_name = strtok_r(fn_copy, " ", &save_ptr);
+  file_name = strtok_r(file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
@@ -174,6 +175,18 @@ int process_exec(void *f_name) {
   NOT_REACHED();
 }
 
+struct process *get_child_process(tid_t tid) {
+  struct process *current = &thread_current()->process;
+  struct list_elem *e;
+
+  for (e = list_begin(&current->children); e != list_end(&current->children);
+       e = list_next(e)) {
+    struct process *p = list_entry(e, struct process, elem);
+    if (p->self->tid == tid) return p;
+  }
+  return NULL;
+}
+
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
  * exception), returns -1.  If TID is invalid or if it was not a
@@ -183,21 +196,23 @@ int process_exec(void *f_name) {
  *
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
-int process_wait(tid_t child_tid UNUSED) {
-  /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-   * XXX:       to add infinite loop here before
-   * XXX:       implementing the process_wait. */
-  while (1);
-  return -1;
+int process_wait(tid_t child_tid) {
+  struct process *child = get_child_process(child_tid);
+  if (child == NULL) return -1;
+
+  sema_down(&child->sema_wait);
+  int status = child->exit_status;
+  printf("%s: exit(%d)\n", child->self->name, child->exit_status);
+  sema_up(&child->sema_exit);
+  return status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
   struct thread *curr = thread_current();
-  /* TODO: Your code goes here.
-   * TODO: Implement process termination message (see
-   * TODO: project2/process_termination.html).
-   * TODO: We recommend you to implement process resource cleanup here. */
+
+  sema_up(&curr->process.sema_wait);
+  sema_down(&curr->process.sema_exit);
 
   process_cleanup();
 }
@@ -312,7 +327,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   /* Allocate and activate page directory. */
   t->pml4 = pml4_create();
   if (t->pml4 == NULL) goto done;
-  process_activate(thread_current());
+  process_activate(t);
 
   char *token, *save_ptr;
   token = strtok_r(file_name, " ", &save_ptr);
@@ -323,6 +338,8 @@ static bool load(const char *file_name, struct intr_frame *if_) {
     printf("load: %s: open failed\n", token);
     goto done;
   }
+  t->process.self_file = file;
+  file_deny_write(file);
 
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
@@ -391,49 +408,39 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   if_->rip = ehdr.e_entry;
 
   void *stack_pointer = if_->rsp - 8;
-  int char_size = strlen(token) + 1;
+  int char_size;
   int argc = 0;
-
   char **argv[64] = {
       NULL,
   };
 
-  stack_pointer -= char_size;
-  memcpy(stack_pointer, token, char_size);
-  argv[argc++] = stack_pointer;
-
-  // Push arguments
-  while (1) {
-    token = strtok_r(NULL, " ", &save_ptr);
-    if (token == NULL) break;
+  do {
     char_size = strlen(token) + 1;
     stack_pointer -= char_size;
     memcpy(stack_pointer, token, char_size);
     argv[argc++] = stack_pointer;
-  }
+    token = strtok_r(NULL, " ", &save_ptr);
+  } while (token != NULL);
 
-  // Align stack pointer
   stack_pointer = ROUND_DOWN((unsigned long long)stack_pointer, 8);
 
-  // Push argv
   for (int i = argc; i >= 0; i--) {
     stack_pointer -= 8;
     memcpy(stack_pointer, &argv[i], 8);
   }
+
   if_->R.rdi = argc;
   if_->R.rsi = (int)stack_pointer;
 
   stack_pointer -= 8;
   *(int *)stack_pointer = 0;
 
-  // Set stack pointer
   if_->rsp = stack_pointer;
 
   success = true;
 
 done:
   /* We arrive here whether the load is successful or not. */
-  file_close(file);
   return success;
 }
 

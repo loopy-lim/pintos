@@ -66,7 +66,7 @@ static int load_avg;
 #define FP_TO_INT_ROUND(x) \
   ((x) >= 0 ? ((x) + (1 << 13)) >> 14 : ((x) - (1 << 13)) >> 14)
 #define FP_ADD_INT(x, n) ((x) + INT_TO_FP(n))
-#define FP_SUB_INT(x, n) ((x)-INT_TO_FP(n))
+#define FP_SUB_INT(x, n) ((x) - INT_TO_FP(n))
 #define FP_MUL_INT(x, n) ((x) * (n))
 #define FP_DIV_INT(x, n) ((x) / (n))
 
@@ -217,6 +217,17 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     t->nice = thread_current()->nice;
     t->priority = PRI_MAX;
   }
+
+#ifdef USERPROG
+  struct thread *cur = thread_current();
+  list_push_back(&cur->process.children, &t->process.elem);
+  t->process.parent = cur;
+  t->process.self = t;
+  t->process.exit_status = -1;
+  sema_init(&t->process.sema_wait, 0);
+  sema_init(&t->process.sema_exit, 0);
+  t->process.self_file = NULL;
+#endif
 
   /* Add to run queue. */
   thread_unblock(t);
@@ -520,6 +531,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   list_init(&t->donation_list);
   t->waiting_lock = NULL;
   list_push_back(&all_list, &t->all_elem);
+  list_init(&t->process.children);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
