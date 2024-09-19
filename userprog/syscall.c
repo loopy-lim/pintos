@@ -13,6 +13,15 @@
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
+void exit_(int status);
+void check_user_vaddr(const void *vaddr);
+void syscall_write(struct intr_frame *f);
+void syscall_exit(struct intr_frame *f);
+void syscall_create(struct intr_frame *f);
+void syscall_open(struct intr_frame *f);
+void syscall_close(struct intr_frame *f);
+void syscall_read(struct intr_frame *f);
+void syscall_filesize(struct intr_frame *f);
 
 /* System call.
  *
@@ -56,13 +65,23 @@ void syscall_write(struct intr_frame *f) {
   int fd = f->R.rdi;
   const void *buffer = (const void *)f->R.rsi;
   unsigned size = f->R.rdx;
+  check_user_vaddr(buffer);
 
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     f->R.rax = size;
-  } else {
-    f->R.rax = -1;
+    return;
   }
+  if (fd == STDIN_FILENO) {
+    f->R.rax = -1;
+    return;
+  }
+  if (fd < 2 || fd > 127) {
+    f->R.rax = -1;
+    return;
+  }
+
+  f->R.rax = fd_write(fd, buffer, size);
 }
 
 void syscall_exit(struct intr_frame *f) {
@@ -168,7 +187,7 @@ void syscall_handler(struct intr_frame *f) {
       syscall_filesize(f);
       break;
     default:
-      printf("%d \n", f->R.rax);
+      printf("%lld \n", f->R.rax);
       printf("system call!\n");
       thread_exit();
       break;

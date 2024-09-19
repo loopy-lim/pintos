@@ -54,3 +54,11 @@ off_t fd_file_size(fdid_t fd) {
   off_t file_size = file_length(proc->files[fd]);
   return file_size;
 }
+
+off_t fd_write(fdid_t fd, const void *buffer, unsigned size) {
+  struct process *proc = &thread_current()->process;
+  if (proc->files[fd] == NULL) return -1;
+
+  unsigned write_bytes = file_write(proc->files[fd], buffer, size);
+  return write_bytes;
+}
