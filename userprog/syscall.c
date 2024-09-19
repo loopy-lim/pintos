@@ -6,6 +6,7 @@
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "userprog/file_descriptor.h"
+#include "userprog/process.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/flags.h"
@@ -162,6 +163,21 @@ void syscall_filesize(struct intr_frame *f) {
   f->R.rax = file_size;
 }
 
+void syscall_fork(struct intr_frame *f) {
+  const char *file_name = (const char *)f->R.rdi;
+  f->R.rax = process_fork(file_name, f);
+}
+
+void syscall_exec(struct intr_frame *f) {
+  const char *file_name = (const char *)f->R.rdi;
+  f->R.rax = process_exec(file_name);
+}
+
+void syscall_wait(struct intr_frame *f) {
+  tid_t tid = f->R.rdi;
+  f->R.rax = process_wait(tid);
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
@@ -185,6 +201,15 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_FILESIZE:
       syscall_filesize(f);
+      break;
+    case SYS_FORK:
+      syscall_fork(f);
+      break;
+    case SYS_EXEC:
+      syscall_exec(f);
+      break;
+    case SYS_WAIT:
+      syscall_wait(f);
       break;
     default:
       printf("%lld \n", f->R.rax);

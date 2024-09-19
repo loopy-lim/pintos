@@ -1,10 +1,12 @@
 #include "userprog/file_descriptor.h"
 #include "threads/thread.h"
 
+fdid_t get_first_fd(struct process *proc);
+
 fdid_t get_first_fd(struct process *proc) {
   fdid_t fd = 2;
   while (proc->files[fd] != NULL) {
-    if (fd == 127) return -1;
+    if (fd == 127) return 0;
     fd++;
   }
   return fd;
@@ -21,7 +23,7 @@ fdid_t fd_open(const char *file_name) {
 
   struct process *proc = &thread_current()->process;
   fdid_t fd = get_first_fd(proc);
-  if (fd == -1) {
+  if (fd == 0) {
     file_close(file);
     return -1;
   }
@@ -61,4 +63,13 @@ off_t fd_write(fdid_t fd, const void *buffer, unsigned size) {
 
   unsigned write_bytes = file_write(proc->files[fd], buffer, size);
   return write_bytes;
+}
+
+bool fd_duplicates(struct process *parent, struct process *child) {
+  for (int i = 0; i < 128; i++) {
+    if (parent->files[i] != NULL) {
+      child->files[i] = file_duplicate(parent->files[i]);
+    }
+  }
+  return true;
 }

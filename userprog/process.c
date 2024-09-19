@@ -7,6 +7,7 @@
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
+#include "userprog/file_descriptor.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -67,11 +68,24 @@ static void initd(void *f_name) {
   NOT_REACHED();
 }
 
+struct process_fork_args {
+  struct intr_frame *if_;
+  struct thread *parent;
+  struct semaphore sema;
+  int status;
+};
+
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
-tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED) {
-  /* Clone current thread to new thread.*/
-  return thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
+tid_t process_fork(const char *name, struct intr_frame *if_) {
+  struct process_fork_args args;
+  args.if_ = if_;
+  args.parent = thread_current();
+  sema_init(&args.sema, 0);
+  tid_t tid = thread_create(name, PRI_DEFAULT, __do_fork, &args);
+
+  sema_down(&args.sema);
+  return args.status;
 }
 
 #ifndef VM
@@ -84,22 +98,20 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
   void *newpage;
   bool writable;
 
-  /* 1. TODO: If the parent_page is kernel page, then return immediately. */
+  if (is_kern_pte(pte)) return true;
 
-  /* 2. Resolve VA from the parent's page map level 4. */
   parent_page = pml4_get_page(parent->pml4, va);
+  if (parent_page == NULL) return false;
 
-  /* 3. TODO: Allocate new PAL_USER page for the child and set result to
-   *    TODO: NEWPAGE. */
+  newpage = palloc_get_page(PAL_USER);
+  if (newpage == NULL) return false;
 
-  /* 4. TODO: Duplicate parent's page to the new page and
-   *    TODO: check whether parent's page is writable or not (set WRITABLE
-   *    TODO: according to the result). */
+  memcpy(newpage, parent_page, PGSIZE);
+  writable = is_writable(pte);
 
-  /* 5. Add new page to child's page table at address VA with WRITABLE
-   *    permission. */
   if (!pml4_set_page(current->pml4, va, newpage, writable)) {
-    /* 6. TODO: if fail to insert page, do error handling. */
+    palloc_free_page(newpage);
+    return false;
   }
   return true;
 }
@@ -111,10 +123,10 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
  *       this function. */
 static void __do_fork(void *aux) {
   struct intr_frame if_;
-  struct thread *parent = (struct thread *)aux;
+  struct process_fork_args *args = aux;
+  struct thread *parent = args->parent;
   struct thread *current = thread_current();
-  /* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-  struct intr_frame *parent_if;
+  struct intr_frame *parent_if = args->if_;
   bool succ = true;
 
   /* 1. Read the cpu context to local stack. */
@@ -132,17 +144,24 @@ static void __do_fork(void *aux) {
   if (!pml4_for_each(parent->pml4, duplicate_pte, parent)) goto error;
 #endif
 
-  /* TODO: Your code goes here.
-   * TODO: Hint) To duplicate the file object, use `file_duplicate`
-   * TODO:       in include/filesys/file.h. Note that parent should not return
-   * TODO:       from the fork() until this function successfully duplicates
-   * TODO:       the resources of parent.*/
+  bool is_success_duplicate =
+      fd_duplicates(&parent->process, &current->process);
+  if (!is_success_duplicate) goto error;
+
+  if_.R.rax = 0;
+  current->process.parent = &parent->process;
+  current->process.self_file = file_duplicate(parent->process.self_file);
+  if (current->process.self_file == NULL) goto error;
 
   process_init();
+  args->status = current->tid;
+  sema_up(&args->sema);
 
   /* Finally, switch to the newly created process. */
   if (succ) do_iret(&if_);
 error:
+  args->status = -1;
+  sema_up(&args->sema);
   thread_exit();
 }
 
@@ -213,6 +232,8 @@ void process_exit(void) {
 
   sema_up(&curr->process.sema_wait);
   sema_down(&curr->process.sema_exit);
+  file_close(curr->process.self_file);
+  list_remove(&curr->process.elem);
 
   process_cleanup();
 }
@@ -577,8 +598,8 @@ static bool install_page(void *upage, void *kpage, bool writable) {
 }
 #else
 /* From here, codes will be used after project 3.
- * If you want to implement the function for only project 2, implement it on the
- * upper block. */
+ * If you want to implement the function for only project 2, implement it on
+ * the upper block. */
 
 static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
