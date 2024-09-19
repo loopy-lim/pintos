@@ -197,6 +197,17 @@ void syscall_wait(struct intr_frame *f) {
   f->R.rax = process_wait(tid);
 }
 
+void syscall_seek(struct intr_frame *f) {
+  int fd = f->R.rdi;
+  unsigned position = f->R.rsi;
+
+  if (fd < 0 || fd > 127) {
+    exit_(-1);
+  }
+
+  fd_seek(fd, position);
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
@@ -229,6 +240,9 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_WAIT:
       syscall_wait(f);
+      break;
+    case SYS_SEEK:
+      syscall_seek(f);
       break;
     default:
       printf("%lld \n", f->R.rax);

@@ -17,6 +17,13 @@ bool fd_create(const char *file_name, const off_t initial_size) {
   return is_create;
 }
 
+void fd_seek(fdid_t fd, unsigned position) {
+  struct process *proc = &thread_current()->process;
+  if (proc->files[fd] == NULL) return;
+
+  file_seek(proc->files[fd], position);
+}
+
 fdid_t fd_open(const char *file_name) {
   struct file *file = filesys_open(file_name);
   if (file == NULL) return -1;
