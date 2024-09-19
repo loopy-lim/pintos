@@ -29,3 +29,12 @@ fdid_t fd_open(const char *file_name) {
   proc->files[fd] = file;
   return fd;
 }
+
+bool fd_close(fdid_t fd) {
+  struct process *proc = &thread_current()->process;
+  if (proc->files[fd] == NULL) return false;
+
+  file_close(proc->files[fd]);
+  proc->files[fd] = NULL;
+  return true;
+}

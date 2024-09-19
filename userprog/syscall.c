@@ -97,6 +97,16 @@ void syscall_open(struct intr_frame *f) {
   f->R.rax = fd;
 }
 
+void syscall_close(struct intr_frame *f) {
+  const int fd = f->R.rdi;
+  if (fd < 0 || fd > 127) {
+    exit_(-1);
+  }
+
+  bool success = fd_close(fd);
+  f->R.rax = success;
+}
+
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f) {
   switch (f->R.rax) {
@@ -111,6 +121,9 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_OPEN:
       syscall_open(f);
+      break;
+    case SYS_CLOSE:
+      syscall_close(f);
       break;
     default:
       printf("%d \n", f->R.rax);
