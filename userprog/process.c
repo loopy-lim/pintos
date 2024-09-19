@@ -45,6 +45,9 @@ tid_t process_create_initd(const char *file_name) {
   if (fn_copy == NULL) return TID_ERROR;
   strlcpy(fn_copy, file_name, PGSIZE);
 
+  char *save_ptr;
+  file_name = strtok_r(fn_copy, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
   if (tid == TID_ERROR) palloc_free_page(fn_copy);
@@ -184,6 +187,7 @@ int process_wait(tid_t child_tid UNUSED) {
   /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
    * XXX:       to add infinite loop here before
    * XXX:       implementing the process_wait. */
+  while (1);
   return -1;
 }
 
@@ -310,10 +314,13 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   if (t->pml4 == NULL) goto done;
   process_activate(thread_current());
 
+  char *token, *save_ptr;
+  token = strtok_r(file_name, " ", &save_ptr);
+
   /* Open executable file. */
-  file = filesys_open(file_name);
+  file = filesys_open(token);
   if (file == NULL) {
-    printf("load: %s: open failed\n", file_name);
+    printf("load: %s: open failed\n", token);
     goto done;
   }
 
@@ -383,8 +390,44 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   /* Start address. */
   if_->rip = ehdr.e_entry;
 
-  /* TODO: Your code goes here.
-   * TODO: Implement argument passing (see project2/argument_passing.html). */
+  void *stack_pointer = if_->rsp - 8;
+  int char_size = strlen(token) + 1;
+  int argc = 0;
+
+  char **argv[64] = {
+      NULL,
+  };
+
+  stack_pointer -= char_size;
+  memcpy(stack_pointer, token, char_size);
+  argv[argc++] = stack_pointer;
+
+  // Push arguments
+  while (1) {
+    token = strtok_r(NULL, " ", &save_ptr);
+    if (token == NULL) break;
+    char_size = strlen(token) + 1;
+    stack_pointer -= char_size;
+    memcpy(stack_pointer, token, char_size);
+    argv[argc++] = stack_pointer;
+  }
+
+  // Align stack pointer
+  stack_pointer = ROUND_DOWN((unsigned long long)stack_pointer, 8);
+
+  // Push argv
+  for (int i = argc; i >= 0; i--) {
+    stack_pointer -= 8;
+    memcpy(stack_pointer, &argv[i], 8);
+  }
+  if_->R.rdi = argc;
+  if_->R.rsi = (int)stack_pointer;
+
+  stack_pointer -= 8;
+  *(int *)stack_pointer = 0;
+
+  // Set stack pointer
+  if_->rsp = stack_pointer;
 
   success = true;
 

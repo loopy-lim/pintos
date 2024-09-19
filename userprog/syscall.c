@@ -36,9 +36,29 @@ void syscall_init(void) {
             FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 
+void syscall_write(struct intr_frame *f) {
+  int fd = f->R.rdi;
+  const void *buffer = (const void *)f->R.rsi;
+  unsigned size = f->R.rdx;
+
+  if (fd == STDOUT_FILENO) {
+    putbuf(buffer, size);
+    f->R.rax = size;
+  } else {
+    f->R.rax = -1;
+  }
+}
+
 /* The main system call interface */
-void syscall_handler(struct intr_frame *f UNUSED) {
-  // TODO: Your implementation goes here.
-  printf("system call!\n");
-  thread_exit();
+void syscall_handler(struct intr_frame *f) {
+  switch (f->R.rax) {
+    case SYS_WRITE:
+      syscall_write(f);
+      break;
+    default:
+      printf("%d", f->R.rax);
+      printf("system call!\n");
+      thread_exit();
+      break;
+  }
 }
