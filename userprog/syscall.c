@@ -46,7 +46,8 @@ void exit_(int status) {
 }
 
 void check_user_vaddr(const void *vaddr) {
-  if (!is_user_vaddr(vaddr)) {
+  if (vaddr == NULL || is_kernel_vaddr(vaddr) ||
+      pml4e_walk(thread_current()->pml4, vaddr, false) == NULL) {
     exit_(-1);
   }
 }
@@ -76,16 +77,24 @@ void syscall_create(struct intr_frame *f) {
   const unsigned initial_size = f->R.rsi;
   check_user_vaddr(file);
 
-  if (file == NULL) {
-    exit_(-1);
-  }
-
-  if (strlen(file) == 0) {
+  if (file == NULL && strlen(file) == 0) {
     exit_(-1);
   }
 
   off_t off_ = fd_create(file, initial_size);
   f->R.rax = off_;
+}
+
+void syscall_open(struct intr_frame *f) {
+  const char *file = (const char *)f->R.rdi;
+  check_user_vaddr(file);
+
+  if (file == NULL && strlen(file) == 0) {
+    exit_(-1);
+  }
+
+  fdid_t fd = fd_open(file);
+  f->R.rax = fd;
 }
 
 /* The main system call interface */
@@ -99,6 +108,9 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_CREATE:
       syscall_create(f);
+      break;
+    case SYS_OPEN:
+      syscall_open(f);
       break;
     default:
       printf("%d \n", f->R.rax);
