@@ -11,3 +11,6 @@ off_t fd_file_size(fdid_t fd);
 bool fd_close(fdid_t fd);
 off_t fd_write(fdid_t fd, const void *buffer, unsigned size);
 bool fd_duplicates(struct process *parent, struct process *child);
+void fd_seek(fdid_t fd, unsigned position);
+bool fd_remove(const char *file_name);
+void fd_clean_up_by(struct process *proc);

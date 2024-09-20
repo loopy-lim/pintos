@@ -149,10 +149,10 @@ static void __do_fork(void *aux) {
   if (!is_success_duplicate) goto error;
 
   if_.R.rax = 0;
+
   current->process.parent = &parent->process;
   current->process.self_file = file_duplicate(parent->process.self_file);
   if (current->process.self_file == NULL) goto error;
-  file_deny_write(current->process.self_file);
 
   process_init();
   args->status = current->tid;
@@ -243,8 +243,7 @@ void process_exit(void) {
 
   sema_up(&curr->process.sema_wait);
   sema_down(&curr->process.sema_exit);
-
-  file_close(curr->process.self_file);
+  fd_clean_up_by(&curr->process);
 
   process_cleanup();
 }
@@ -261,6 +260,9 @@ static void process_cleanup(void) {
   /* Destroy the current process's page directory and switch back
    * to the kernel-only page directory. */
   pml4 = curr->pml4;
+  if (curr->process.self_file != NULL) file_close(curr->process.self_file);
+  curr->process.self_file = NULL;
+
   if (pml4 != NULL) {
     /* Correct ordering here is crucial.  We must set
      * cur->pagedir to NULL before switching page directories,

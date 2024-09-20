@@ -85,3 +85,12 @@ bool fd_duplicates(struct process *parent, struct process *child) {
   }
   return true;
 }
+
+void fd_clean_up_by(struct process *proc) {
+  for (int i = 2; i < 128; i++) {
+    if (proc->files[i] != NULL) {
+      file_close(proc->files[i]);
+      proc->files[i] = NULL;
+    }
+  }
+}
