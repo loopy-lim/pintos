@@ -153,6 +153,7 @@ static void __do_fork(void *aux) {
   current->process.parent = &parent->process;
   current->process.self_file = file_duplicate(parent->process.self_file);
   if (current->process.self_file == NULL) goto error;
+  file_allow_write(current->process.self_file);
 
   process_init();
   args->status = current->tid;
@@ -162,7 +163,10 @@ static void __do_fork(void *aux) {
   if (succ) do_iret(&if_);
 error:
   args->status = -1;
+  current->process.exit_status = -1;
+  list_remove(&current->process.elem);
   sema_up(&args->sema);
+  sema_up(&current->process.sema_exit);
   thread_exit();
 }
 
@@ -242,8 +246,14 @@ void process_exit(void) {
   struct thread *curr = thread_current();
 
   sema_up(&curr->process.sema_wait);
-  sema_down(&curr->process.sema_exit);
+
+  if (curr->process.self_file != NULL) {
+    file_close(curr->process.self_file);
+    curr->process.self_file = NULL;
+  }
   fd_clean_up_by(&curr->process);
+
+  sema_down(&curr->process.sema_exit);
 
   process_cleanup();
 }
@@ -260,8 +270,6 @@ static void process_cleanup(void) {
   /* Destroy the current process's page directory and switch back
    * to the kernel-only page directory. */
   pml4 = curr->pml4;
-  if (curr->process.self_file != NULL) file_close(curr->process.self_file);
-  curr->process.self_file = NULL;
 
   if (pml4 != NULL) {
     /* Correct ordering here is crucial.  We must set

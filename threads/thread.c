@@ -337,7 +337,7 @@ void thread_yield_by_priority(void) {
 
   struct thread *first_ready_thread =
       list_entry(list_front(&ready_list), struct thread, elem);
-  if (!is_thread_priority_less(&curr->elem, &first_ready_thread->elem, NULL)) {
+  if (curr->priority < first_ready_thread->priority) {
     if (intr_context())
       intr_yield_on_return();
     else

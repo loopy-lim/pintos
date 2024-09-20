@@ -24,6 +24,8 @@ void syscall_open(struct intr_frame *f);
 void syscall_close(struct intr_frame *f);
 void syscall_read(struct intr_frame *f);
 void syscall_filesize(struct intr_frame *f);
+void syscall_fork(struct intr_frame *f);
+void syscall_exec(struct intr_frame *f);
 
 /* System call.
  *

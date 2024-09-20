@@ -81,6 +81,9 @@ bool fd_duplicates(struct process *parent, struct process *child) {
   for (int i = 0; i < 128; i++) {
     if (parent->files[i] != NULL) {
       child->files[i] = file_duplicate(parent->files[i]);
+      if (child->files[i] == NULL) {
+        return false;
+      }
     }
   }
   return true;
