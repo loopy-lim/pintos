@@ -1,8 +1,5 @@
 {
   "files.associations": {
-    "palloc.h": "c",
-    "stdint.h": "c",
-    "flags.h": "c",
     "thread.h": "c",
     "algorithm": "c",
     "stdio.h": "c",

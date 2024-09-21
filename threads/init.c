@@ -27,6 +27,7 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "userprog/file_descriptor.h"
 #endif
 #include "tests/threads/tests.h"
 #ifdef VM
@@ -329,8 +330,7 @@ void power_off(void) {
 
   printf("Powering off...\n");
   outw(0x604, 0x2000); /* Poweroff command for qemu */
-  for (;;)
-    ;
+  for (;;);
 }
 
 /* Print statistics about Pintos execution. */
