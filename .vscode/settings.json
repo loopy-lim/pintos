@@ -16,6 +16,8 @@
     "file_descriptor.h": "c",
     "file.h": "c",
     "filesys.h": "c",
-    "*.inc": "c"
+    "*.inc": "c",
+    "uninit.h": "c",
+    "anon.h": "c"
   },
 }

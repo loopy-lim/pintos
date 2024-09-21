@@ -13,7 +13,7 @@
       "compilerPath": "/usr/bin/gcc",
       "cStandard": "c11",
       "cppStandard": "gnu++14",
-      "defines": ["USERPROG", "FILESYS"]
+      "defines": ["USERPROG", "FILESYS", "VM"]
     }
   ],
   "version": 4
