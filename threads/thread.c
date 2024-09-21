@@ -224,6 +224,17 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     t->priority = PRI_MAX;
   }
 
+#ifdef USERPROG
+  struct thread *cur = thread_current();
+  list_push_back(&cur->process.children, &t->process.elem);
+  t->process.parent = cur;
+  t->process.self = t;
+  t->process.exit_status = -1;
+  sema_init(&t->process.sema_wait, 0);
+  sema_init(&t->process.sema_exit, 0);
+  t->process.self_file = NULL;
+#endif
+
   /* Add to run queue. */
   thread_unblock(t);
   thread_yield_by_priority();
@@ -332,7 +343,7 @@ void thread_yield_by_priority(void) {
 
   struct thread *first_ready_thread =
       list_entry(list_front(&ready_list), struct thread, elem);
-  if (!is_thread_priority_less(&curr->elem, &first_ready_thread->elem, NULL)) {
+  if (curr->priority < first_ready_thread->priority) {
     if (intr_context())
       intr_yield_on_return();
     else
@@ -526,7 +537,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   list_init(&t->donation_list);
   t->waiting_lock = NULL;
   list_push_back(&all_list, &t->all_elem);
-  sema_init(&t->sema_wait, 0);
+  list_init(&t->process.children);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

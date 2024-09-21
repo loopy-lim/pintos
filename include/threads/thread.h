@@ -5,7 +5,11 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+
+#ifdef USERPROG
 #include "threads/synch.h"
+#endif
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -30,6 +34,20 @@ typedef int tid_t;
 #define NICE_DEFAULT 0 /* Default nice value. */
 #define RECENT_CPU_DEFAULT 0
 #define LOAD_AVG_DEFAULT 0
+
+#ifdef USERPROG
+struct process {
+  struct thread *parent;
+  struct thread *self;
+  struct file *self_file;
+  struct file *files[128];
+  struct list children;
+  struct list_elem elem;
+  int exit_status;
+  struct semaphore sema_wait;
+  struct semaphore sema_exit;
+};
+#endif
 
 /* A kernel thread or user process.
  *
@@ -114,6 +132,7 @@ struct thread {
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint64_t *pml4; /* Page map level 4 */
+  struct process process;
 #endif
 #ifdef VM
   /* Table for whole virtual memory owned by thread. */

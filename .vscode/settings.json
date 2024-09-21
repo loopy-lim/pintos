@@ -1,19 +1,20 @@
 {
   "files.associations": {
-    "stdio.h": "c",
-    "syscall-nr.h": "c",
     "thread.h": "c",
-    "loader.h": "c",
-    "gdt.h": "c",
+    "algorithm": "c",
+    "stdio.h": "c",
+    "process.h": "c",
     "interrupt.h": "c",
-    "flags.h": "c",
-    "string.h": "c",
-    "random.h": "c",
-    "*.inc": "c",
+    "debug.h": "c",
+    "vm.h": "c",
+    "list.h": "c",
     "synch.h": "c",
+    "syscall-nr.h": "c",
+    "file_descriptor.h": "c",
+    "file.h": "c",
     "filesys.h": "c",
-    "file_descriptor_table.h": "c",
-    "lib.h": "c",
-    "file_descriptor.h": "c"
-  }
+    "*.inc": "c",
+    "uninit.h": "c",
+    "anon.h": "c"
+  },
 }
