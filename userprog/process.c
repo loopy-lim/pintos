@@ -65,7 +65,7 @@ static void initd(void *f_name) {
 
   process_init();
 
-  if (process_exec(f_name) < 0) PANIC("Fail to launch initd\n");
+  if (process_exec(f_name, NULL) < 0) PANIC("Fail to launch initd\n");
   NOT_REACHED();
 }
 
@@ -172,7 +172,7 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
-int process_exec(void *f_name) {
+int process_exec(void *f_name, struct semaphore *sema) {
   char *file_name = f_name;
   bool success;
 
@@ -192,6 +192,7 @@ int process_exec(void *f_name) {
 
   /* If load failed, quit. */
   palloc_free_page(file_name);
+  if (sema != NULL) sema_up(sema);
   if (!success) return -1;
 
   /* Start switched process. */
@@ -624,6 +625,23 @@ static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
+  struct load_seg *seg = aux;
+  struct file *file = seg->file;
+  size_t page_read_byte = seg->page_read_bytes;
+  size_t page_zero_byte = seg->page_zero_bytes;
+  off_t offset = seg->offset;
+
+  struct frame *frame = page->frame;
+
+  file_seek(file, offset);
+  if (file_read(file, frame->kva, page_read_byte) != (int)page_read_byte) {
+    return false;
+  }
+  // file_read(file,frame->kva, page_read_byte);
+  memset(frame->kva + page_read_byte, 0, page_zero_byte);
+
+  free(aux);
+  return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -655,7 +673,14 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     /* TODO: Set up aux to pass information to the lazy_load_segment. */
-    void *aux = NULL;
+    // 세그먼트에 넣을 정보를 aux를 통해서 전달해라.
+    struct load_seg *aux = malloc(sizeof(struct load_seg));
+    aux->file = file;
+    aux->offset = ofs;
+    aux->page_read_bytes = page_read_bytes;
+    aux->page_zero_bytes = page_zero_bytes;
+    aux->type = VM_ANON;  // spt에 있어도 되려나??
+
     if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable,
                                         lazy_load_segment, aux))
       return false;
@@ -664,6 +689,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
     upage += PGSIZE;
+    // ofs+=page_read_bytes-page_zero_bytes;
+    ofs += page_read_bytes;
   }
   return true;
 }
@@ -678,6 +705,46 @@ static bool setup_stack(struct intr_frame *if_) {
    * TODO: You should mark the page is stack. */
   /* TODO: Your code goes here */
 
+  /* 처음에는 바로 스택을 할당해줘야한다.
+   * palloc을 통해서 값을 설정해줘야한다.
+   * 그리고 pml4로 매핑을 해줘야한다.
+   * spt에 추가가 되어야한다. ->이건 함수안에 들어가 있을것이다.
+   */
+
+  /* 스택을 바로 할당해준다..-> 프레임을 얻고 그 프레임에 kva를 설정하고
+   * 그프레임과 유저페이지를 매핑
+   * 문제 : 이걸 해주는 함수들이 static이라 여기서 사용할 수 없음
+   */
+
+  /* vm_claim page를 활용한다.
+   * 만약 spt_find_page에서 NULL 값이 나온다면
+   * page를 만들어준다.
+   * 여기서 페이지를 만들어줄때 셋팅해줄 값을 스택 초기값으로 만들어줘야한다.
+   * aux값으로 설정할 구조체를 넘겨줘야할 것 같다.
+   * 이전에 사용한 setup_stack을 확인해봤을때 페이지를 받고 rsp값만 가리키고
+   * 끝났다.
+   */
+  struct supplemental_page_table *spt = &thread_current()->spt;
+  struct thread *t = thread_current();
+
+  if (spt_find_page(spt, stack_bottom) == NULL) {
+    //페이지를 초기화 해줘야하는데.. 지금은 어떠한 값으로도 초기화 되지 않은?
+    //상태
+    // 타입이 뭐이고, 어떤값을 읽어야하고,, 등등
+    // 만든 페이지를 spt 테이블에 넣는다.
+    vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, true);
+    // spt_insert_page(&t->spt, page);
+
+    success = vm_claim_page(stack_bottom);
+    if (success) if_->rsp = USER_STACK;
+  }
+
   return success;
 }
+
+
+bool load_mmap(void *addr, size_t length, int writable, int fd, off_t offset){
+
+}
+
 #endif /* VM */

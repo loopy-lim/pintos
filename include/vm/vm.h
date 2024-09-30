@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include <hash.h>
 
 enum vm_type {
   /* page not initialized */
@@ -35,6 +36,7 @@ struct page_operations;
 struct thread;
 
 #define VM_TYPE(type) ((type)&7)
+#define START_VM 0x400000
 
 /* The representation of "page".
  * This is kind of "parent class", which has four "child class"es, which are
@@ -44,6 +46,8 @@ struct page {
   const struct page_operations *operations;
   void *va;            /* Address in terms of user space */
   struct frame *frame; /* Back reference for frame */
+  struct hash_elem page_elem;
+  bool writable;
 
   /* Your implementation */
 
@@ -76,6 +80,14 @@ struct page_operations {
   enum vm_type type;
 };
 
+struct load_seg {
+  struct file *file;      // 어떤걸 읽을지
+  off_t offset;           // 어디서부터 더 읽을지 (offset)
+  size_t page_read_bytes; // 몇바이트 읽을지      (4kb)
+  size_t page_zero_bytes; // 만약 읽을 사이즈가 더 작을 경우 패딩
+  enum vm_type type;      // 이 페이지의 타입
+};
+
 #define swap_in(page, v) (page)->operations->swap_in((page), v)
 #define swap_out(page) (page)->operations->swap_out(page)
 #define destroy(page) \
@@ -84,7 +96,10 @@ struct page_operations {
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
-struct supplemental_page_table {};
+struct supplemental_page_table {
+  struct hash page_table; // 페이지를 저장할 해시테이블
+  // struct hash_elem page_elem;
+};
 
 #include "threads/thread.h"
 void supplemental_page_table_init(struct supplemental_page_table *spt);
@@ -108,4 +123,7 @@ void vm_dealloc_page(struct page *page);
 bool vm_claim_page(void *va);
 enum vm_type page_get_type(struct page *page);
 
+static unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
+static bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+static struct page *page_lookup (const void *address);
 #endif /* VM_VM_H */

@@ -233,6 +233,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   sema_init(&t->process.sema_wait, 0);
   sema_init(&t->process.sema_exit, 0);
   t->process.self_file = NULL;
+  t->t_rsp = NULL;    /* 현재 thread의 rsp의 값을 저장할 t_rsp 저장 */
 #endif
 
   /* Add to run queue. */
@@ -492,6 +493,7 @@ static void idle(void *idle_started_ UNUSED) {
 
   for (;;) {
     /* Let someone else run. */
+
     intr_disable();
     thread_block();
 
@@ -538,6 +540,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   t->waiting_lock = NULL;
   list_push_back(&all_list, &t->all_elem);
   list_init(&t->process.children);
+  // hash_insert(t->spt.page_table, &t->elem);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

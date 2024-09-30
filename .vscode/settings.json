@@ -15,6 +15,18 @@
     "filesys.h": "c",
     "*.inc": "c",
     "uninit.h": "c",
-    "anon.h": "c"
+    "anon.h": "c",
+    "inspect.h": "c",
+    "palloc.h": "c",
+    "mmu.h": "c",
+    "hash.h": "c",
+    "disk.h": "c",
+    "directory.h": "c",
+    "gdt.h": "c",
+    "inttypes.h": "c",
+    "syscall.h": "c",
+    "flags.h": "c",
+    "cksum.h": "c",
+    "vaddr.h": "c"
   },
 }
