@@ -298,7 +298,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
   struct hash_elem *e = NULL;
   // memcpy(dst,src,sizeof(struct supplemental_page_table));
   hash_first(&inter, src);
-  struct load_seg *aux = NULL;
+  struct lazy_info *aux = NULL;
   while(hash_next(&inter)){
     // 부모의 spt의 페이지를 순차적으로 읽어옴
     struct page * child_page = NULL;
@@ -307,8 +307,8 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
     enum vm_type type = p_page->operations->type;
     switch (type) {
       case VM_UNINIT:
-        aux = malloc(sizeof(struct load_seg));
-        memcpy(aux, p_page->uninit.aux, sizeof(struct load_seg));
+        aux = malloc(sizeof(struct lazy_info));
+        memcpy(aux, p_page->uninit.aux, sizeof(struct lazy_info));
         vm_alloc_page_with_initializer(p_page->uninit.type, p_page->va, true, p_page->uninit.init,aux);
         break;
       case VM_ANON :

@@ -27,6 +27,8 @@
     "syscall.h": "c",
     "flags.h": "c",
     "cksum.h": "c",
-    "vaddr.h": "c"
+    "vaddr.h": "c",
+    "stdbool.h": "c",
+    "malloc.h": "c"
   },
 }

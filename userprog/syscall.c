@@ -35,6 +35,7 @@ void syscall_seek(struct intr_frame *f);
 void syscall_remove(struct intr_frame *f);
 void syscall_mmap(struct intr_frame *f);
 void syscall_munmmap(struct intr_frame *f);
+struct file * get_fd_file(int fd);
 
 /* System call.
  *
@@ -83,15 +84,17 @@ void check_user_vaddr(const void *vaddr) {
     exit_(-1);
   }
 }
-bool check_page(const void *addr) {
+bool  check_page(const void *addr) {
   struct supplemental_page_table *spt = &thread_current()->spt;
 
   return !spt_find_page(spt, addr);
 }
 
-void is_vm(const void *va) {
+void is_vm(struct intr_frame *f, const void *va) {
   if (START_VM > va || USER_STACK < va) {
-    exit_(1);
+    sema_up(&syscall_file_sema);
+    f->R.rax = NULL;
+    return;
   }
 }
 
@@ -105,11 +108,12 @@ void syscall_write(struct intr_frame *f) {
   int fd = f->R.rdi;
   const void *buffer = (const void *)f->R.rsi;
   unsigned size = f->R.rdx;
+  struct thread *t = thread_current();
   check_user_vaddr(buffer);
   check_pml4(buffer);
   check_writable_page(buffer);
   check_page(buffer);
-  if(check_page(buffer)){
+  if (check_page(buffer)) {
     exit_(-1);
   }
 
@@ -129,6 +133,7 @@ void syscall_write(struct intr_frame *f) {
     sema_up(&syscall_file_sema);
     return;
   }
+  pml4_set_dirty(t->pml4, buffer, 1);
 
   sema_up(&syscall_file_sema);
   f->R.rax = fd_write(fd, buffer, size);
@@ -302,22 +307,65 @@ void syscall_remove(struct intr_frame *f) {
 void syscall_mmap(struct intr_frame *f) {
   sema_down(&syscall_file_sema);
   void *addr = (char *)f->R.rdi;
+  size_t length = f->R.rsi;
+  int writable  = f->R.rdx;
+  fdid_t fd = f->R.r10;
+  off_t offset = f->R.r8;
   check_user_vaddr(addr);
-  is_vm(addr);
-  check_pml4(addr);
+  is_vm(f, addr);
+  // check_pml4(addr);
+  // 유효한 포인터인지 검증하는게 필요함
+  if (length == NULL) {
+    f->R.rax = NULL;
+    sema_up(&syscall_file_sema);
+    return;
+  }
   if (!check_page(addr)) {
     f->R.rax = NULL;
     sema_up(&syscall_file_sema);
     return;
   }
+  if (!find_fd(fd)) {
+    f->R.rax = NULL;
+    sema_up(&syscall_file_sema);
+    return;
+  }
+  if (offset % PGSIZE != 0) {
+    f->R.rax = NULL;
+    sema_up(&syscall_file_sema);
+    return;
+  }
+  struct file *file = get_fd_file(fd);
+  if(file==NULL){
+    f->R.rax = NULL;
+    sema_up(&syscall_file_sema);
+    return;
+  }
 
+  do_mmap(addr, length, writable, file, offset);
+  
+  f->R.rax = pg_round_down(addr);
+  sema_up(&syscall_file_sema);
+}
+
+struct file * get_fd_file(int fd){
+  struct file *file = thread_current()->process.files[fd];
+  return file;
 }
 
 void syscall_munmmap(struct intr_frame *f) {
   sema_down(&syscall_file_sema);
-  char *f_name = (char *)f->R.rdi;
-  check_user_vaddr(f_name);
-  check_pml4(f_name);
+  void *addr = (char *)f->R.rdi;
+  if (check_page(addr)) {
+    f->R.rax = NULL;
+    sema_up(&syscall_file_sema);
+    return;
+  }
+  check_user_vaddr(addr);
+  is_vm(f, addr);
+
+  do_munmap(addr);
+  sema_up(&syscall_file_sema);
 }
 
 /* The main system call interface */

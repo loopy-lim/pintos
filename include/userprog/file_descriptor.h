@@ -14,3 +14,4 @@ bool fd_duplicates(struct process *parent, struct process *child);
 void fd_seek(fdid_t fd, unsigned position);
 bool fd_remove(const char *file_name);
 void fd_clean_up_by(struct process *proc);
+bool find_fd (fdid_t fd);       // fd가 있는지 없는지 확인

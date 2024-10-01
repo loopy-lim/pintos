@@ -625,7 +625,7 @@ static bool lazy_load_segment(struct page *page, void *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
-  struct load_seg *seg = aux;
+  struct lazy_info *seg = aux;
   struct file *file = seg->file;
   size_t page_read_byte = seg->page_read_bytes;
   size_t page_zero_byte = seg->page_zero_bytes;
@@ -674,7 +674,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
     /* TODO: Set up aux to pass information to the lazy_load_segment. */
     // 세그먼트에 넣을 정보를 aux를 통해서 전달해라.
-    struct load_seg *aux = malloc(sizeof(struct load_seg));
+    struct lazy_info *aux = malloc(sizeof(struct lazy_info));
     aux->file = file;
     aux->offset = ofs;
     aux->page_read_bytes = page_read_bytes;

@@ -80,12 +80,18 @@ struct page_operations {
   enum vm_type type;
 };
 
-struct load_seg {
+struct lazy_info {
   struct file *file;      // 어떤걸 읽을지
   off_t offset;           // 어디서부터 더 읽을지 (offset)
   size_t page_read_bytes; // 몇바이트 읽을지      (4kb)
   size_t page_zero_bytes; // 만약 읽을 사이즈가 더 작을 경우 패딩
   enum vm_type type;      // 이 페이지의 타입
+};
+
+struct file_load_info {
+  struct file *file;
+  void * buffer;
+  off_t offset;
 };
 
 #define swap_in(page, v) (page)->operations->swap_in((page), v)
@@ -126,4 +132,6 @@ enum vm_type page_get_type(struct page *page);
 static unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
 static bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 static struct page *page_lookup (const void *address);
+
+static bool file_lazy_load(struct page *page, void *aux);
 #endif /* VM_VM_H */

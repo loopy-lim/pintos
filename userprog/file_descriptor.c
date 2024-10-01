@@ -97,3 +97,10 @@ void fd_clean_up_by(struct process *proc) {
     }
   }
 }
+
+bool find_fd (fdid_t fd){
+  struct process *proc = &thread_current()->process;
+  if(proc->files[fd]==NULL)
+    return false;
+  return true;
+}
