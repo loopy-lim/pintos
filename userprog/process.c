@@ -632,7 +632,7 @@ static bool lazy_load_segment(struct page *page, struct segment_aux *aux) {
   이 함수는 가상 주소에서 처음 페이지 폴트가 발생했을 때 호출된다. 
   가상 주소는 이 함수를 호출했을 때 사용가능하다*/
   /* "여기서 페이지는 실행파일이야 그리고 그 페이지에 대한 데이터를 집어넣어줘야된다고 !"*/
-
+    // struct segment_aux *aux; 
     /* Load this page. */
     file_seek(aux->file,aux->ofs);
     if (file_read(aux->file, page->frame->kva, aux->read_bytes) != (int)aux->read_bytes) {

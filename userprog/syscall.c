@@ -279,7 +279,7 @@ void syscall_remove(struct intr_frame *f) {
 }
 
 void syscall_mmap(struct intr_frame *f){
-  // sema_down(&syscall_file_sema);
+  sema_down(&syscall_file_sema);
   void *addr = (void *)f -> R.rdi;
   size_t length = f -> R.rsi;
   int writable = f -> R.rdx;
@@ -288,19 +288,17 @@ void syscall_mmap(struct intr_frame *f){
   struct file *file = thread_current() -> process.files[fd];
   if(file == NULL) return false;
   
-  ASSERT(pg_ofs(addr) == 0);
-  ASSERT(is_kernel_vaddr(addr));
-  ASSERT(offset % PGSIZE == 0);
+  ASSERT(!is_kernel_vaddr(addr));
 
   if(length <= 0) return false;
-  
+
   void *mmap_addr = (void *)(((uint8_t)addr) % PGSIZE);
   if(mmap_addr != 0) return false;
 
   if(fd == STDIN_FILENO || fd == STDOUT_FILENO) return false;
   
   if(spt_find_page(&thread_current()->spt, addr)) return false;
-  // sema_up(&syscall_file_sema);
+  sema_up(&syscall_file_sema);
   return do_mmap(addr, length, writable, file, offset);
 };
 
@@ -343,6 +341,9 @@ void syscall_handler(struct intr_frame *f) {
       break;
     case SYS_REMOVE:
       syscall_remove(f);
+      break;
+    case SYS_MMAP:
+      syscall_mmap(f);
       break;
     default:
       printf("%lld \n", f->R.rax);

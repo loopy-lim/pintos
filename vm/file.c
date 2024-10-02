@@ -3,7 +3,6 @@
 #include "vm/vm.h"
 #include "stdio.h"
 #include "threads/vaddr.h"
-#include "userprog/process.h"
 
 static bool file_backed_swap_in(struct page *page, void *kva);
 static bool file_backed_swap_out(struct page *page);
@@ -49,6 +48,27 @@ static void file_backed_destroy(struct page *page) {
   struct file_page *file_page UNUSED = &page->file;
 }
 
+static bool lazy_file_load_segment(struct page *page, struct segment_aux *aux) {
+  /* TODO: Load the segment from the file */
+  /* TODO: This called when the first page fault occurs on address VA. */
+  /* TODO: VA is available when calling this function. */
+  /* 파일에서부터 segment를 로드해온다.
+  이 함수는 가상 주소에서 처음 페이지 폴트가 발생했을 때 호출된다. 
+  가상 주소는 이 함수를 호출했을 때 사용가능하다*/
+  /* "여기서 페이지는 실행파일이야 그리고 그 페이지에 대한 데이터를 집어넣어줘야된다고 !"*/
+    // struct segment_aux *aux; 
+    /* Load this page. */
+    file_seek(aux->file,aux->ofs);
+    if (file_read(aux->file, page->frame->kva, aux->read_bytes) != (int)aux->read_bytes) {
+
+      return false;
+    }
+    memset(page->frame->kva + aux->read_bytes, 0, aux->zero_bytes);
+    free(aux);
+  return true;
+}
+
+
 void *do_mmap(void *addr, size_t length, int writable, struct file *file,
               off_t offset) {
   // length는 read _bytes; 
@@ -68,7 +88,7 @@ void *do_mmap(void *addr, size_t length, int writable, struct file *file,
       file_aux->zero_bytes = page_zero_bytes;
 
       if (!vm_alloc_page_with_initializer(VM_FILE, addr, writable,
-                                          lazy_load_segment, file_aux))
+                                          lazy_file_load_segment, file_aux))
         return false;
 
       /* Advance. */
