@@ -216,7 +216,6 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   t->parent_tid = thread_current()->tid;
   list_init(&t->child_list);
   list_push_back(&thread_current()->child_list, &t->child_elem);
-  list_init(&t->file_descriptor_table);
 
   if (thread_mlfqs) {
     t->recent_cpu = thread_current()->recent_cpu;
@@ -408,7 +407,7 @@ void thread_donate_restore(void) {
 }
 
 /* Sets the current thread's nice value to NICE. */
-void thread_set_nice(int nice UNUSED) {
+void thread_set_nice(int nice) {
   struct thread *cur = thread_current();
   cur->nice = nice;
   thread_calc_recent_cpu();

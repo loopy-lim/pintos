@@ -124,7 +124,6 @@ struct thread {
   struct list child_list;
   struct list_elem child_elem;
   struct semaphore sema_wait;
-  struct list file_descriptor_table;
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
@@ -137,6 +136,7 @@ struct thread {
 #ifdef VM
   /* Table for whole virtual memory owned by thread. */
   struct supplemental_page_table spt;
+  void *stack_pointer;
 #endif
 
   /* Owned by thread.c. */

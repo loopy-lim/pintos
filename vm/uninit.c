@@ -10,6 +10,9 @@
 
 #include "vm/vm.h"
 #include "vm/uninit.h"
+#include "vm/anon.h"
+#include "vm/file.h"
+#include "threads/vaddr.h"
 
 static bool uninit_initialize(struct page *page, void *kva);
 static void uninit_destroy(struct page *page);
@@ -48,8 +51,11 @@ static bool uninit_initialize(struct page *page, void *kva) {
   void *aux = uninit->aux;
 
   /* TODO: You may need to fix this function. */
-  return uninit->page_initializer(page, uninit->type, kva) &&
-         (init ? init(page, aux) : true);
+  if (!uninit->page_initializer(page, uninit->type, kva)) return false;
+  if (page->operations->type != VM_FILE && init) return init(page, aux);
+  if (page->operations->type == VM_FILE) return swap_in(page, page->frame->kva);
+  memset(kva, 0, PGSIZE);
+  return true;
 }
 
 /* Free the resources hold by uninit_page. Although most of pages are transmuted
@@ -57,7 +63,9 @@ static bool uninit_initialize(struct page *page, void *kva) {
  * exit, which are never referenced during the execution.
  * PAGE will be freed by the caller. */
 static void uninit_destroy(struct page *page) {
-  struct uninit_page *uninit UNUSED = &page->uninit;
+  struct uninit_page *uninit = &page->uninit;
   /* TODO: Fill this function.
    * TODO: If you don't have anything to do, just return. */
+  if (uninit->aux != NULL) free(uninit->aux);
+  return;
 }
