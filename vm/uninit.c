@@ -39,7 +39,8 @@ void uninit_new(struct page *page, void *va, vm_initializer *init,
                         }};
 }
 
-/* Initalize the page on first fault */
+/* Initalize the page on first fault 
+초기화 되지 않은 페이지가 처음으로 페이지 폴트를 일으켰을 때 초기화 하는 함수*/
 static bool uninit_initialize(struct page *page, void *kva) {
   struct uninit_page *uninit = &page->uninit;
 
@@ -55,9 +56,18 @@ static bool uninit_initialize(struct page *page, void *kva) {
 /* Free the resources hold by uninit_page. Although most of pages are transmuted
  * to other page objects, it is possible to have uninit pages when the process
  * exit, which are never referenced during the execution.
- * PAGE will be freed by the caller. */
+ * PAGE will be freed by the caller. 
+ * 초기화되지 않은 페이지에 의해 점유된 자원을 해제해준다.  대부분의 경우 초기화 되지 않은 페이지는 
+ * 다른 페이지 객체로 변환되지만, 프로세스가 exit 될 때까지
+ * 실행 중 참조되지 않은 초기화되지 않은 페이지가 남아있을 수 있다. 
+ * 이 페이지는 caller에 의해 해제될 것이다.*/
 static void uninit_destroy(struct page *page) {
-  struct uninit_page *uninit UNUSED = &page->uninit;
+  struct uninit_page *uninit = &page->uninit;
   /* TODO: Fill this function.
    * TODO: If you don't have anything to do, just return. */
+
+  if(uninit->aux != NULL){
+    free(uninit->aux);
+  }
+  return;
 }

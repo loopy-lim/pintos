@@ -1,7 +1,7 @@
 #include "userprog/file_descriptor.h"
 #include "threads/thread.h"
 
-fdid_t get_first_fd(struct process *proc);
+// fdid_t get_first_fd(struct process *proc);
 
 fdid_t get_first_fd(struct process *proc) {
   fdid_t fd = 2;

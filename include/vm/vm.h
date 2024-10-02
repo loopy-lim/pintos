@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "hash.h"
 
 enum vm_type {
   /* page not initialized */
@@ -44,6 +45,8 @@ struct page {
   const struct page_operations *operations;
   void *va;            /* Address in terms of user space */
   struct frame *frame; /* Back reference for frame */
+  struct hash_elem hash_elem;
+  bool writable;
 
   /* Your implementation */
 
@@ -84,7 +87,9 @@ struct page_operations {
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
-struct supplemental_page_table {};
+struct supplemental_page_table {
+	struct hash hash_table;
+};
 
 #include "threads/thread.h"
 void supplemental_page_table_init(struct supplemental_page_table *spt);
@@ -108,4 +113,15 @@ void vm_dealloc_page(struct page *page);
 bool vm_claim_page(void *va);
 enum vm_type page_get_type(struct page *page);
 
+unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
+bool page_less (const struct hash_elem *a_,
+           const struct hash_elem *b_, void *aux UNUSED);
+
+// segment에 필요한 data를 담을 aux 구조체 만들기 
+struct segment_aux {
+  struct file *file;
+  off_t ofs;
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
+};
 #endif /* VM_VM_H */

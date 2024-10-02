@@ -15,6 +15,7 @@
     "filesys.h": "c",
     "*.inc": "c",
     "uninit.h": "c",
-    "anon.h": "c"
+    "anon.h": "c",
+    "inttypes.h": "c"
   },
 }

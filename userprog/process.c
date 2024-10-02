@@ -39,7 +39,7 @@ static void process_init(void) { struct thread *current = thread_current(); }
  * thread id, or TID_ERROR if the thread cannot be created.
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t process_create_initd(const char *file_name) {
-  char *fn_copy;
+char *fn_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -65,7 +65,7 @@ static void initd(void *f_name) {
 
   process_init();
 
-  if (process_exec(f_name) < 0) PANIC("Fail to launch initd\n");
+  if (process_exec(f_name, NULL) < 0) PANIC("Fail to launch initd\n");
   NOT_REACHED();
 }
 
@@ -172,7 +172,8 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
-int process_exec(void *f_name) {
+int 
+process_exec(void *f_name, struct semaphore *sema) {
   char *file_name = f_name;
   bool success;
 
@@ -192,11 +193,12 @@ int process_exec(void *f_name) {
 
   /* If load failed, quit. */
   palloc_free_page(file_name);
+  if (sema != NULL) sema_up(sema);
   if (!success) return -1;
 
   /* Start switched process. */
   do_iret(&_if);
-  NOT_REACHED();
+  NOT_REACHED(); 
 }
 
 struct process *get_child_process(tid_t tid) {
@@ -450,7 +452,7 @@ static bool load(const char *file_name, struct intr_frame *if_) {
   void *stack_pointer = if_->rsp - 8;
   int char_size;
   int argc = 0;
-  char **argv[64] = {
+  char **argv[64] = { 
       NULL,
   };
 
@@ -587,13 +589,15 @@ static bool setup_stack(struct intr_frame *if_) {
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  // 사용자 페이지를 할당하기 
+  kpage = palloc_get_page(PAL_USER | PAL_ZERO); // PAL_USER 와 PAL_ZERO 의 비트연산
   if (kpage != NULL) {
+    // USER_STACK의 가장 마지막 위치에 해당하는 페이지를 프로세스의 가상 메모리에 매핑
     success = install_page(((uint8_t *)USER_STACK) - PGSIZE, kpage, true);
     if (success)
-      if_->rsp = USER_STACK;
+      if_->rsp = USER_STACK; // 매핑이 성공하면 rsp 를 USER_STACK 위치로 설정
     else
-      palloc_free_page(kpage);
+      palloc_free_page(kpage); // 실패시 free
   }
   return success;
 }
@@ -620,10 +624,24 @@ static bool install_page(void *upage, void *kpage, bool writable) {
  * If you want to implement the function for only project 2, implement it on
  * the upper block. */
 
-static bool lazy_load_segment(struct page *page, void *aux) {
+static bool lazy_load_segment(struct page *page, struct segment_aux *aux) {
   /* TODO: Load the segment from the file */
   /* TODO: This called when the first page fault occurs on address VA. */
   /* TODO: VA is available when calling this function. */
+  /* 파일에서부터 segment를 로드해온다.
+  이 함수는 가상 주소에서 처음 페이지 폴트가 발생했을 때 호출된다. 
+  가상 주소는 이 함수를 호출했을 때 사용가능하다*/
+  /* "여기서 페이지는 실행파일이야 그리고 그 페이지에 대한 데이터를 집어넣어줘야된다고 !"*/
+
+    /* Load this page. */
+    file_seek(aux->file,aux->ofs);
+    if (file_read(aux->file, page->frame->kva, aux->read_bytes) != (int)aux->read_bytes) {
+
+      return false;
+    }
+    memset(page->frame->kva + aux->read_bytes, 0, aux->zero_bytes);
+    free(aux);
+  return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -655,7 +673,12 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     /* TODO: Set up aux to pass information to the lazy_load_segment. */
-    void *aux = NULL;
+    struct segment_aux *aux = malloc(sizeof(struct segment_aux));
+    aux->file = file;
+    aux->ofs = ofs; // 현재 페이지의 파일 오프셋
+    aux->read_bytes = page_read_bytes;
+    aux->zero_bytes = page_zero_bytes;
+
     if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable,
                                         lazy_load_segment, aux))
       return false;
@@ -664,6 +687,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
     upage += PGSIZE;
+    ofs += page_read_bytes;
   }
   return true;
 }
@@ -675,9 +699,22 @@ static bool setup_stack(struct intr_frame *if_) {
 
   /* TODO: Map the stack on stack_bottom and claim the page immediately.
    * TODO: If success, set the rsp accordingly.
-   * TODO: You should mark the page is stack. */
+   * TODO: You should mark the page is stack.
+    TODO: stack_bottom에 스택을 매핑하고 페이지를 즉시 할당하세요.
+  * TODO: 성공하면 rsp(스택 포인터)를 적절히 설정하세요.
+  * TODO: 페이지를 스택으로 표시해야 합니다.*/
   /* TODO: Your code goes here */
+  /*1. load_time때 스택 페이지를 커맨드 라인의 인자들과 함께 할당하고 초기화 
+  2. 스택을 확인하는 방법 제공하기 
+  3. vm_type에 있는 보조 marker들을 페이지를 마킹하는데 사용하기 */
 
+
+  // if (vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)) {
+  if (!vm_alloc_page(VM_ANON, stack_bottom, 1))
+    return false;
+  success = vm_claim_page(stack_bottom);
+  
+  if_->rsp = USER_STACK;
   return success;
 }
 #endif /* VM */

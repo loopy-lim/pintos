@@ -13,4 +13,12 @@ bool file_backed_initializer(struct page *page, enum vm_type type, void *kva);
 void *do_mmap(void *addr, size_t length, int writable, struct file *file,
               off_t offset);
 void do_munmap(void *va);
+
+// segment에 필요한 data를 담을 aux 구조체 만들기
+struct file_aux {
+  struct file *file;
+  off_t ofs;
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
+};
 #endif

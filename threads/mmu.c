@@ -180,13 +180,17 @@ void pml4_destroy(uint64_t *pml4) {
 }
 
 /* Loads page directory PD into the CPU's page directory base
- * register. */
+ * register. 
+ 페이지 디렉토리 PD를 CPU의 페이지 디렉토리 기본 레지스터에 로드한다  */
 void pml4_activate(uint64_t *pml4) { lcr3(vtop(pml4 ? pml4 : base_pml4)); }
 
 /* Looks up the physical address that corresponds to user virtual
  * address UADDR in pml4.  Returns the kernel virtual address
  * corresponding to that physical address, or a null pointer if
- * UADDR is unmapped. */
+ * UADDR is unmapped. 
+ * pml4에서 user 가상 주소 UADDR 에 해당하는 물리적 주소를 조회한다. 
+ * 물리적 주소에 해당하는 커널 가상 주소를 반환하거나
+ * UADDR 이 매핑되지 않은 경우 null pointer를 반환한다. */
 void *pml4_get_page(uint64_t *pml4, const void *uaddr) {
   ASSERT(is_user_vaddr(uaddr));
 
@@ -203,7 +207,12 @@ void *pml4_get_page(uint64_t *pml4, const void *uaddr) {
  * If WRITABLE is true, the new page is read/write;
  * otherwise it is read-only.
  * Returns true if successful, false if memory allocation
- * failed. */
+ * failed. 
+ * user 가상 페이지 UPAGE 의 페이지 맵 레벨 4 PML4 의 매핑을 커널 가상 주소 KPAGE 로 식별되는 frame 에 추가한다 
+ * UPAGE는 아직 매핑되어있지 않아야 한다. KPAGE는 아마도 palloc_get_page()를 사용하여 유저 풀에서 얻은 페이지여야 한다
+ * 만약 WRITABLE이 true 라면, 새 페이지는 읽기 /쓰기 이다. 
+ * 그렇지 않으면 읽기 전용이다. 
+ * 성공하면 ture , 메모리 할당에 실패하면 false 를 반환한다 */
 bool pml4_set_page(uint64_t *pml4, void *upage, void *kpage, bool rw) {
   ASSERT(pg_ofs(upage) == 0);
   ASSERT(pg_ofs(kpage) == 0);
@@ -219,7 +228,12 @@ bool pml4_set_page(uint64_t *pml4, void *upage, void *kpage, bool rw) {
 /* Marks user virtual page UPAGE "not present" in page
  * directory PD.  Later accesses to the page will fault.  Other
  * bits in the page table entry are preserved.
- * UPAGE need not be mapped. */
+ * UPAGE need not be mapped. 
+ * 페이지 디렉토리 PD 에 user 가상 페이지 UPAGE를 "not present"로 표시한다.
+ * 나중에 페이지에 엑세스하면 오류가 발생한다. 
+ * 페이지 테이블 엔트리의 다른 비트는 보존된다
+ * UPAGE는 매핑될 필요가 없다. 
+ * */
 void pml4_clear_page(uint64_t *pml4, void *upage) {
   uint64_t *pte;
   ASSERT(pg_ofs(upage) == 0);

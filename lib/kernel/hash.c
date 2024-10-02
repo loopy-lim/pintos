@@ -170,6 +170,22 @@ void hash_apply(struct hash *h, hash_action_func *action) {
    functions hash_clear(), hash_destroy(), hash_insert(),
    hash_replace(), or hash_delete(), invalidates all
    iterators. */
+   /* 해시 테이블 H를 순회하기 위해 I를 초기화합니다.
+
+   순회 방식:
+
+   struct hash_iterator i;
+
+   hash_first(&i, h);
+   while (hash_next(&i))
+   {
+     struct foo *f = hash_entry(hash_cur(&i), struct foo, elem);
+     ... f를 가지고 무언가를 수행 ...
+   }
+
+   해시 테이블 H를 순회하는 동안 hash_clear(), hash_destroy(), hash_insert(), 
+   hash_replace(), 또는 hash_delete()와 같은 함수를 사용하여 해시 테이블을 수정하면 
+   모든 반복자가 무효화됩니다. */
 void hash_first(struct hash_iterator *i, struct hash *h) {
   ASSERT(i != NULL);
   ASSERT(h != NULL);
