@@ -35,7 +35,7 @@ void syscall_seek(struct intr_frame *f);
 void syscall_remove(struct intr_frame *f);
 void syscall_mmap(struct intr_frame *f);
 void syscall_munmmap(struct intr_frame *f);
-struct file * get_fd_file(int fd);
+struct file *get_fd_file(int fd);
 
 /* System call.
  *
@@ -72,19 +72,12 @@ void exit_(int status) {
   thread_exit();
 }
 
-void check_pml4(const void *vaddr) {
-  struct thread *t = thread_current();
-  if (pml4e_walk(t->pml4, (uint64_t)vaddr, 0) == NULL) {
-    exit_(-1);
-  }
-}
-
 void check_user_vaddr(const void *vaddr) {
   if (vaddr == NULL || is_kernel_vaddr(vaddr)) {
     exit_(-1);
   }
 }
-bool  check_page(const void *addr) {
+bool check_page(const void *addr) {
   struct supplemental_page_table *spt = &thread_current()->spt;
 
   return !spt_find_page(spt, addr);
@@ -110,12 +103,6 @@ void syscall_write(struct intr_frame *f) {
   unsigned size = f->R.rdx;
   struct thread *t = thread_current();
   check_user_vaddr(buffer);
-  check_pml4(buffer);
-  check_writable_page(buffer);
-  check_page(buffer);
-  if (check_page(buffer)) {
-    exit_(-1);
-  }
 
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
@@ -133,7 +120,7 @@ void syscall_write(struct intr_frame *f) {
     sema_up(&syscall_file_sema);
     return;
   }
-  pml4_set_dirty(t->pml4, buffer, 1);
+  // pml4_set_dirty(t->pml4, buffer, 1);
 
   sema_up(&syscall_file_sema);
   f->R.rax = fd_write(fd, buffer, size);
@@ -149,7 +136,6 @@ void syscall_create(struct intr_frame *f) {
   const char *file = (const char *)f->R.rdi;
   const unsigned initial_size = f->R.rsi;
   check_user_vaddr(file);
-  check_pml4(file);
 
   if (file == NULL && strlen(file) == 0) {
     sema_up(&syscall_file_sema);
@@ -165,7 +151,6 @@ void syscall_open(struct intr_frame *f) {
   sema_down(&syscall_file_sema);
   const char *file = (const char *)f->R.rdi;
   check_user_vaddr(file);
-  check_pml4(file);
 
   if (file == NULL && strlen(file) == 0) {
     sema_up(&syscall_file_sema);
@@ -197,7 +182,6 @@ void syscall_read(struct intr_frame *f) {
   unsigned size = f->R.rdx;
 
   check_user_vaddr(buffer);
-  check_pml4(buffer);
 
   if (fd < 0 || fd > 127) {
     sema_up(&syscall_file_sema);
@@ -250,7 +234,6 @@ void syscall_exec(struct intr_frame *f) {
   sema_down(&syscall_file_sema);
   char *f_name = (char *)f->R.rdi;
   check_user_vaddr(f_name);
-  check_pml4(f_name);
 
   int f_name_len = strlen(f_name) + 1;
   if (f_name_len > PGSIZE) {
@@ -308,7 +291,7 @@ void syscall_mmap(struct intr_frame *f) {
   sema_down(&syscall_file_sema);
   void *addr = (char *)f->R.rdi;
   size_t length = f->R.rsi;
-  int writable  = f->R.rdx;
+  int writable = f->R.rdx;
   fdid_t fd = f->R.r10;
   off_t offset = f->R.r8;
   check_user_vaddr(addr);
@@ -336,24 +319,33 @@ void syscall_mmap(struct intr_frame *f) {
     return;
   }
   struct file *file = get_fd_file(fd);
-  if(file==NULL){
+  if (file == NULL) {
     f->R.rax = NULL;
     sema_up(&syscall_file_sema);
     return;
   }
 
   do_mmap(addr, length, writable, file, offset);
-  
+
   f->R.rax = pg_round_down(addr);
   sema_up(&syscall_file_sema);
 }
 
-struct file * get_fd_file(int fd){
+struct file *get_fd_file(int fd) {
   struct file *file = thread_current()->process.files[fd];
   return file;
 }
 
 void syscall_munmmap(struct intr_frame *f) {
+  // vm_file 타입인지 확인해야해
+  // 파일을 닫아줘야하나??
+  // 더러워진페이지인지 확인한다.
+  // mmap으로 만들어진 페이지인지 확인한다.
+  // 더티라면 원래 파일을 열어서 다시 써줘야한다.
+  // fd를 이용해서 파일의 주소를 얻어 그곳에 변경된 데이터를 써준다.
+  // 0으로 채운 패딩을 처리할 방법도 생각
+  // 나중에는 페이지를 두개 할당받은 경우도 생각해봐야할듯
+
   sema_down(&syscall_file_sema);
   void *addr = (char *)f->R.rdi;
   if (check_page(addr)) {

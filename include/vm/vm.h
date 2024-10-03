@@ -90,8 +90,10 @@ struct lazy_info {
 
 struct file_load_info {
   struct file *file;
-  void * buffer;
+  size_t length;
   off_t offset;
+  bool cont_page;         
+
 };
 
 #define swap_in(page, v) (page)->operations->swap_in((page), v)

@@ -98,6 +98,7 @@ void fd_clean_up_by(struct process *proc) {
   }
 }
 
+//fd에 페이지가 있는지 확인
 bool find_fd (fdid_t fd){
   struct process *proc = &thread_current()->process;
   if(proc->files[fd]==NULL)

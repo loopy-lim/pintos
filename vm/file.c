@@ -17,17 +17,26 @@ static const struct page_operations file_ops = {
 };
 
 static bool file_lazy_load(struct page *page, void *aux) {
-  struct lazy_info *file_info = aux;
+  struct file_load_info *file_info = aux;
   struct file *file = file_info->file;
-  size_t page_read_bytes = file_info->page_read_bytes;
-  size_t page_zero_bytes = file_info->page_zero_bytes;
-  off_t offset = file_info->offset;
+  size_t file_length  = file_info->length;
+  // size_t page_zero_bytes  = file_info->page_zero_bytes;
+  off_t offset            = file_info->offset;
+  bool cont_page          = file_info->cont_page;
 
   struct frame *frame = page->frame;
 
   file_seek(file, offset);
-  size_t read_size = file_read(file, frame->kva, page_read_bytes);
+  size_t read_size = file_read(file, frame->kva, PGSIZE);
+  // if(pml4_is_dirty(thread_current()->pml4,page->va))
   memset(frame->kva + read_size, 0, PGSIZE - read_size);
+  page->file.file = file;
+  page->file.offset = offset;
+  page->file.file_size = file_length;
+  page->file.page_read_bytes = read_size;
+  page->file.page_zero_bytes = PGSIZE - read_size;
+  // page->file.file_size = page_read_bytes;
+  page->file.cont_page = cont_page;
 
   free(aux);
   return true;
@@ -59,34 +68,59 @@ static bool file_backed_swap_out(struct page *page) {
 /* Destory the file backed page. PAGE will be freed by the caller. */
 static void file_backed_destroy(struct page *page) {
   struct file_page *file_page = &page->file;
-  struct thread * t = thread_current();
   // 여기서 더티 여부 확인하고 더티일 시 파일을 저장하고 끝내게 만들어야한다.
   // pml4_is_dirty(t->pml4, )
-  // palloc_free_page(page); 
+  // palloc_free_page(page);
+  // 파일을 reopen을 통해서 독립적으로 파일을 수정할 수 있도록 해야한다.
+  struct file *file = file_page->file;
+  size_t page_read_bytes = file_page->page_read_bytes;
+  size_t page_zero_bytes = file_page->page_zero_bytes;
+  off_t offset = file_page->offset;
+  // struct file *file = file_reopen(old_file);
+  if (pml4_is_dirty(thread_current()->pml4, page->va)) {
+    file_write_at(file, page->frame->kva, page_read_bytes, offset);
+  }
 
+  file_close(file);
 }
-
+ 
 /* Do the mmap */
 void *do_mmap(void *addr, size_t length, int writable, struct file *file,
               off_t offset) {
+  struct file *re_file = file_reopen(file);
+  bool pg_off = false;
   while (length > 0) {
-    size_t page_read_bytes = length < PGSIZE ? length : PGSIZE;
-    size_t page_zero_bytes = PGSIZE - page_read_bytes;
-    struct lazy_info *aux = malloc(sizeof(struct lazy_info));
-    aux->file = file;
+    struct file_load_info *aux = malloc(sizeof(struct file_load_info));
+    aux->file = re_file;
     aux->offset = offset;
-    aux->page_read_bytes = page_read_bytes;
-    aux->page_zero_bytes = page_zero_bytes;
+    aux->length = length;
+    // aux->page_zero_bytes = page_zero_bytes;
+    aux->cont_page = pg_off;
     vm_alloc_page_with_initializer(VM_FILE, addr, writable, file_lazy_load,
                                    aux);
-    length -= PGSIZE;
+    length = length>PGSIZE ? length-PGSIZE : 0;
     offset += PGSIZE;
+    pg_off = true;
+    addr   += PGSIZE;
   }
+  
 }
 
 /* Do the munmap */
+/* 
+  파일의 크기만큼 페이지를 free해주고 
+ */
 void do_munmap(void *addr) {
   struct thread *t = thread_current();
   struct page *page = spt_find_page(&t->spt, addr);
-  destroy(page);
+  int size = PGSIZE;
+  page->file.cont_page==true;
+  int length = page->file.file_size;
+  int refeat = length/PGSIZE;
+
+  for(int i=0; i<refeat; i++){
+    spt_remove_page(&t->spt, page);
+    addr+=PGSIZE;
+    page = spt_find_page(&t->spt, addr);    
+  }
 }

@@ -6,7 +6,14 @@
 struct page;
 enum vm_type;
 
-struct file_page {};
+struct file_page {
+  struct file *file;
+  size_t file_size;
+  size_t page_read_bytes;
+  size_t page_zero_bytes;
+  off_t offset;
+  bool cont_page;
+};
 
 void vm_file_init(void);
 bool file_backed_initializer(struct page *page, enum vm_type type, void *kva);
