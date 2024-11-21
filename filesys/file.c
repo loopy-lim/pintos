@@ -54,9 +54,7 @@ void file_close(struct file *file) {
 }
 
 /* Returns the inode encapsulated by FILE. */
-struct inode *file_get_inode(struct file *file) {
-  return file->inode;
-}
+struct inode *file_get_inode(struct file *file) { return file->inode; }
 
 /* Reads SIZE bytes from FILE into BUFFER,
  * starting at the file's current position.
